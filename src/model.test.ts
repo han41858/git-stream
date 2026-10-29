@@ -8,3 +8,28 @@ test('partial boundary is retained and adding parents deduplicates SHA with stab
 test('ancestor highlighting works without deleted branch references',()=>{assert.deepEqual([...ancestors('m',[c('m','b','c'),c('b','a'),c('c','a'),c('a')])].sort(),['a','b','c','m']);});
 test('repository inputs validate and normalize',()=>{assert.equal(parseRepo('https://github.com/owner/repo.git/'),'owner/repo');assert.equal(parseRepo('owner/repo'),'owner/repo');for(const bad of ['https://evil.example/a/b','../a','a/b?token=x','a/b/tree/main'])assert.throws(()=>parseRepo(bad));});
 test('10k commit layout completes and preserves topology',()=>{const input=Array.from({length:10000},(_,i)=>c(String(i),...(i<9999?[String(i+1)]:[])));assert.equal(valid(input).ordered.length,10000);});
+
+test('selected base first-parent history stays straight through merges and octopus merges',()=>{
+ const input=[c('tip','merge'),c('merge','base','feature','third'),c('feature','root'),c('third','root'),c('base','root'),c('root')];
+ const result=layout(input,new Map(),'tip');
+ for(const sha of ['tip','merge','base','root'])assert.equal(result.lanes.get(sha),0);
+ for(const sha of ['feature','third'])assert.ok(result.lanes.get(sha)!>0);
+ assert.equal(result.ordered.length,input.length);
+ const indices=new Map(result.ordered.map((c,i)=>[c.sha,i]));
+ for(const commit of input)for(const parent of commit.parents)assert.ok(indices.get(commit.sha)!<indices.get(parent.sha)!);
+});
+test('base changes reserve the new first-parent line without inventing links for unrelated history',()=>{
+ const input=[c('base','root'),c('feature','fork'),c('fork','root'),c('root'),c('unrelated')];
+ const first=layout(input,new Map(),'base');
+ const next=layout(input,first.lanes,'feature');
+ for(const sha of ['feature','fork','root'])assert.equal(next.lanes.get(sha),0);
+ assert.ok(next.lanes.get('base')!>0);assert.ok(next.lanes.get('unrelated')!>0);
+ assert.deepEqual(input.find(c=>c.sha==='unrelated')!.parents,[]);
+});
+test('pagination extends the base line across a previously unloaded first parent',()=>{
+ const first=layout([c('tip','missing'),c('side','root')],new Map(),'tip');
+ assert.ok(first.spine.has('missing'));
+ const next=layout([c('tip','missing'),c('side','root'),c('missing','root'),c('root')],first.lanes,'tip');
+ for(const sha of ['tip','missing','root'])assert.equal(next.lanes.get(sha),0);
+ assert.equal(next.lanes.get('side'),first.lanes.get('side'));
+});
