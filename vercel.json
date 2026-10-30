@@ -4,6 +4,9 @@
   "installCommand": "npm ci --no-audit --no-fund",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "git": {
+    "deploymentEnabled": true
+  },
   "headers": [
     {
       "source": "/(.*)",
