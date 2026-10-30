@@ -23,6 +23,7 @@ GitStream은 GitHub 저장소의 커밋과 브랜치 관계를 **세로형 그�
 ### 2.2 공개·비공개 저장소
 - Public: 별도 인증 없이 GitHub REST API 사용
 - Private: 사용자가 직접 입력하는 **fine-grained PAT**로 조회
+- 토큰 패널에서 토큰 유무에 따른 API 한도(IP당 시간당 약 60회 / 약 5,000회)를 짧게 안내
 - PAT 발급 안내: 저장소 선택 및 `Contents: Read-only` 권한; PR 추천 집계에는 `Pull requests: Read-only`도 필요
 - 토큰은 브라우저 메모리에만 유지하고 제거할 수 있어야 함
 - 토큰을 URL, localStorage, sessionStorage, IndexedDB, 로그, 분석 서비스에 저장하거나 노출하지 않음
