@@ -6,15 +6,15 @@ import {monthMarkers} from './monthMarkers';
 import {emojify} from './emoji';
 import {FrontierViewport} from './FrontierViewport';
 const labelText=(names:string[])=>{const text=names.join(' · ');return text.length>34?`${text.slice(0,31)}…`:text;};
-type Props={theme:string;commits:Commit[];branches:Branch[];branch:string;reverse:boolean;onSelect:(c:Commit)=>void;selected:string;hasMore:boolean;loading:boolean;onLoadMore:(sources?:string[])=>void;frontiers:HistoryFrontier[];pendingSources:string[];topInset:number};
-export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,hasMore,loading,onLoadMore,frontiers,pendingSources,topInset}:Props){
+type Props={theme:string;commits:Commit[];branches:Branch[];branch:string;reverse:boolean;onSelect:(c:Commit)=>void;selected:string;hasMore:boolean;loading:boolean;onLoadMore:(sources?:string[])=>void;frontiers:HistoryFrontier[];pendingSources:string[];topInset:number;baseHead?:string};
+export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,hasMore,loading,onLoadMore,frontiers,pendingSources,topInset,baseHead}:Props){
  const container=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),prior=useRef(new Map<string,number>());
  const priorColors=useRef(emptyGraphColors());
  const visited=useRef(new FrontierViewport()),encountered=useRef(new Set<string>()),captureFrontiers=useRef<()=>void>(()=>{});
  const [view,setView]=useState({top:0,width:800,height:600});
  const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width:800px)').matches);
  useEffect(()=>{const media=window.matchMedia('(max-width:800px)');const update=()=>setMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
- const head=branches.find(b=>b.name===branch)?.commit.sha;
+ const head=baseHead||branches.find(b=>b.name===branch)?.commit.sha;
  const data=useMemo(()=>layout(commits,prior.current,head),[commits,head]);
  useEffect(()=>{prior.current=data.lanes;},[data]);
  const tones=useMemo(()=>graphColors(commits,data.ordered,branches,branch,data.spine,priorColors.current),[commits,data,branches,branch]);
