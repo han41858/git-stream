@@ -1,14 +1,40 @@
 export type Commit = { sha: string; parents: {sha:string}[]; commit: {message:string; author:{name:string;date:string}|null; committer:{date:string}|null}; html_url:string };
 export type Branch = {name:string;commit:{sha:string}};
 export type HistoryFrontier = {sha:string;sources:string[]};
-export const ROW = 62;
+export const ROW = 31;
+export function commitTime(commit:Commit){
+  for(const value of [commit.commit.committer?.date,commit.commit.author?.date]){
+    const time=value?Date.parse(value):NaN;if(Number.isFinite(time))return time;
+  }
+  return NaN;
+}
 export function layout(commits: Commit[], previous = new Map<string,number>(), baseHead?:string) {
   const map = new Map(commits.map(c=>[c.sha,c]));
   const children = new Map<string,number>();
   for(const c of map.values()) for(const p of c.parents) if(map.has(p.sha)) children.set(p.sha,(children.get(p.sha)||0)+1);
-  const ready = [...map.values()].filter(c=>!children.get(c.sha));
+  // Choose the newest eligible commit, while keeping every child above its parents.
+  // A FIFO queue interleaves old branch tips with recent base-branch history.
+  const priority=new Map([...map.values()].map((commit,index)=>{
+    const time=commitTime(commit);
+    return [commit.sha,{time:Number.isFinite(time)?time:-Infinity,index}];
+  }));
+  const newer=(a:Commit,b:Commit)=>{const x=priority.get(a.sha)!,y=priority.get(b.sha)!;return x.time>y.time||x.time===y.time&&x.index<y.index;};
+  const ready:Commit[]=[];
+  const push=(commit:Commit)=>{
+    ready.push(commit);let index=ready.length-1;
+    while(index>0){const parent=(index-1)>>1;if(!newer(ready[index],ready[parent]))break;[ready[index],ready[parent]]=[ready[parent],ready[index]];index=parent;}
+  };
+  const pop=()=>{
+    const commit=ready[0],last=ready.pop()!;
+    if(ready.length){
+      ready[0]=last;let index=0;
+      while(index*2+1<ready.length){let child=index*2+1;if(child+1<ready.length&&newer(ready[child+1],ready[child]))child++;if(!newer(ready[child],ready[index]))break;[ready[index],ready[child]]=[ready[child],ready[index]];index=child;}
+    }
+    return commit;
+  };
+  for(const commit of map.values())if(!children.get(commit.sha))push(commit);
   const ordered: Commit[]=[];
-  for(let i=0;i<ready.length;i++){const c=ready[i];ordered.push(c);for(const p of c.parents)if(map.has(p.sha)){const n=children.get(p.sha)!-1;children.set(p.sha,n);if(!n)ready.push(map.get(p.sha)!);}}
+  while(ready.length){const c=pop();ordered.push(c);for(const p of c.parents)if(map.has(p.sha)){const n=children.get(p.sha)!-1;children.set(p.sha,n);if(!n)push(map.get(p.sha)!);}}
   // The base branch follows first parents only: merged ancestry must keep its own lane.
   const spine=new Set<string>();let sha=baseHead;
   while(sha&&!spine.has(sha)){spine.add(sha);sha=map.get(sha)?.parents[0]?.sha;}

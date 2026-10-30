@@ -33,3 +33,24 @@ test('pagination extends the base line across a previously unloaded first parent
  for(const sha of ['tip','missing','root'])assert.equal(next.lanes.get(sha),0);
  assert.equal(next.lanes.get('side'),first.lanes.get('side'));
 });
+
+test('old alphabetically listed branch tips cannot interleave ahead of newer eligible base commits',()=>{
+ const dated=(sha:string,date:string,...parents:string[])=>({...c(sha,...parents),commit:{...c(sha).commit,committer:{date}}});
+ const input=[dated('main-tip','2026-10-29','main-parent'),dated('main-parent','2026-10-28','main-oldest'),dated('main-oldest','2026-10-27'),dated('2.0.x','2016-09-15','old-parent'),dated('old-parent','2016-09-14'),dated('feature','2026-10-28T12:00:00Z')];
+ const result=layout(input,new Map(),'main-tip');
+ assert.deepEqual(result.ordered.map(commit=>commit.sha),['main-tip','feature','main-parent','main-oldest','2.0.x','old-parent']);
+ assert.deepEqual(valid(input).ordered.map(commit=>commit.sha),result.ordered.map(commit=>commit.sha));
+});
+
+test('newest eligible ordering still puts children before future-dated parents',()=>{
+ const child={...c('child','parent'),commit:{...c('child').commit,committer:{date:'2026-01-01'}}};
+ const parent={...c('parent'),commit:{...c('parent').commit,committer:{date:'2030-01-01'}}};
+ const side={...c('side'),commit:{...c('side').commit,committer:{date:'2025-01-01'}}};
+ assert.deepEqual(valid([parent,side,child]).ordered.map(commit=>commit.sha),['child','parent','side']);
+});
+
+test('ordering falls back to author time, keeps equal-date ties stable and handles absent dates',()=>{
+ const dated=(sha:string,date:string)=>({...c(sha),commit:{message:sha,author:{name:'Test',date},committer:{date:'invalid'}}});
+ const missing={...c('missing'),commit:{message:'missing',author:null,committer:null}};
+ assert.deepEqual(valid([missing,dated('first','2026-01-01'),dated('second','2026-01-01'),dated('older','2025-01-01')]).ordered.map(commit=>commit.sha),['first','second','older','missing']);
+});
