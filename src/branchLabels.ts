@@ -1,4 +1,4 @@
-import type {Branch,Commit} from './model';
+import {ROW,type Branch,type Commit} from './model';
 import type {GraphColors} from './graphColors';
 export type Point={x:number;y:number};
 export type BranchTrack={name:string;lane:number;color?:number;points:Point[];connections?:Point[][]};
@@ -19,7 +19,7 @@ export function branchTracks(commits:Commit[],branches:Branch[],base:string,spin
    if(joined)break;
    for(const child of incoming.get(sha)||[]){const from=positions.get(child.sha);if(from)connections.push([from,point]);}
    const parent:string|undefined=map.get(sha)?.parents[0]?.sha;
-   if(parent&&!positions.has(parent)){points.push({x:point.x,y:point.y+(reverse?-35:35)});break;}
+   if(parent&&!positions.has(parent)){points.push({x:point.x,y:point.y+(reverse?-ROW/2:ROW/2)});break;}
    sha=parent;
   }
   tracks.push({name:ref.name,lane:Math.max(0,Math.round((head.x-48)/34)),color,points,connections});

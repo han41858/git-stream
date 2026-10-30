@@ -1,7 +1,11 @@
 import type {Branch,Commit} from './model';
 import type {ClosedPull} from './recommendations';
+import {requestActivity} from './requestActivity';
+export type BranchActivity={ref:string;timestamp:string;activity_type:string};
 export class GitHubError extends Error {constructor(message:string,readonly status:number,readonly retryAt?:number){super(message);}}
-export async function github<T>(path:string,token:string,signal?:AbortSignal):Promise<{data:T;next:boolean}>{
+export async function github<T>(path:string,token:string,signal?:AbortSignal):Promise<{data:T;next:boolean;lastPage?:number;nextCursor?:string}>{
+ const finish=requestActivity.begin(signal);
+ try{
  let r:Response;try{r=await fetch(`https://api.github.com${path}`,{signal,headers:{Accept:'application/vnd.github+json',...(token?{Authorization:`Bearer ${token}`}:{})}});}catch(e){if(signal?.aborted)throw e;throw new Error('Could not reach GitHub. Check your connection and retry.');}
  if(!r.ok){
   if(r.status===403||r.status===429){
@@ -19,9 +23,15 @@ export async function github<T>(path:string,token:string,signal?:AbortSignal):Pr
   }
   throw new GitHubError(r.status===401?'The token is invalid or expired.':r.status===404?'Repository not found, or your token does not have access.':r.status===409?'This repository has no commits.':`GitHub request failed (${r.status}). Please retry.`,r.status);
  }
- return {data:await r.json(),next: /rel="next"/.test(r.headers.get('Link')||'')};
+ const link=r.headers.get('Link')||'';
+ const last=link.match(/<([^>]+)>;\s*rel="last"/);
+ const page=last?Number(new URL(last[1],'https://api.github.com').searchParams.get('page')):NaN;
+ const next=link.match(/<([^>]+)>;\s*rel="next"/);
+ const cursor=next?new URL(next[1],'https://api.github.com').searchParams.get('after'):null;
+ return {data:await r.json(),next:/rel="next"/.test(link),...(Number.isSafeInteger(page)&&page>0?{lastPage:page}:{}),...(cursor?{nextCursor:cursor}:{})};
+ }finally{finish();}
 }
-export const commitsPage=(repo:string,branch:string,page:number,token:string,signal?:AbortSignal)=>github<Commit[]>(`/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=100&page=${page}`,token,signal);
+export const commitsPage=(repo:string,branch:string,page:number,token:string,signal?:AbortSignal,since?:number)=>github<Commit[]>(`/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=100&page=${page}${since===undefined?'':`&since=${encodeURIComponent(new Date(since).toISOString())}`}`,token,signal);
 export const branchesPage=(repo:string,page:number,token:string,signal?:AbortSignal)=>github<Branch[]>(`/repos/${repo}/branches?per_page=100&page=${page}`,token,signal);
 
 export async function branchByName(repo:string,name:string,token:string,signal?:AbortSignal){
@@ -29,3 +39,5 @@ export async function branchByName(repo:string,name:string,token:string,signal?:
  catch(e){if(e instanceof GitHubError&&e.status===404)return null;throw e;}
 }
 export const closedPullsPage=(repo:string,page:number,token:string,signal?:AbortSignal)=>github<ClosedPull[]>(`/repos/${repo}/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=${page}`,token,signal);
+
+export const branchActivityPage=(repo:string,after:string|undefined,token:string,signal?:AbortSignal)=>github<BranchActivity[]>(`/repos/${repo}/activity?time_period=year&direction=desc&per_page=100${after===undefined?'':`&after=${encodeURIComponent(after)}`}`,token,signal);

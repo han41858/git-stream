@@ -24,8 +24,8 @@ export function BranchPicker({history,state,onPicked}:{history:History;state:His
  function choose(name:string){onPicked();setOpen(false);void history.chooseBase(name);}
  async function find(){if(!search)return;if(await history.findBranch(search)){onPicked();setOpen(false);}}
  return <div className="base-picker branch-picker" ref={container}>
-  <button id="base-branch" className="branch-trigger" aria-label="Base branch" aria-expanded={open} aria-controls="branch-menu" disabled={!state.branches.length} onClick={()=>setOpen(!open)}><span><span className="base-prefix">Base: </span>{state.base||'Choose a repository'}</span><span aria-hidden="true">⌄</span></button>
-  {open&&<section className="branch-menu floating-panel" id="branch-menu" aria-label="Choose base branch">
+  <button id="base-branch" className="branch-trigger" aria-label="Branch" aria-expanded={open} aria-controls="branch-menu" disabled={!state.branches.length} onClick={()=>setOpen(!open)}><span><span className="base-prefix">Branch: </span>{state.base||'Choose a branch'}</span><span aria-hidden="true">⌄</span></button>
+  {open&&<section className="branch-menu floating-panel" id="branch-menu" aria-label="Choose branch">
    <form onSubmit={e=>{e.preventDefault();void find();}}><input autoFocus aria-label="Search all branches" placeholder="Search or enter any branch name" value={query} onChange={e=>setQuery(e.target.value)}/>{search&&<button disabled={state.branchSearch.busy} type="submit">{state.branchSearch.busy?'Finding…':'Find exact branch'}</button>}</form>
    <div className="branch-heading">{search?'Matching branches':'Recommended · up to 30'}</div>
    {!search&&<div className="ranking-status" aria-live="polite">{state.ranking.busy?'Counting merged PRs…':state.ranking.error?`PR ranking unavailable: ${state.ranking.error} Priority branches stay first.`:state.ranking.complete?'Merged PRs in the last 90 days':`Partial counts · ${state.ranking.scanned.toLocaleString()} closed PRs checked`}</div>}
