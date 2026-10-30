@@ -37,3 +37,4 @@
 
 .actions-heading{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.actions-job-summary{color:var(--action-running);font-size:11px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}
 .actions-elapsed{display:inline-flex;align-items:center;gap:4px;color:var(--muted);font-size:11px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}.actions-elapsed svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.debug-load-error{position:fixed;right:12px;bottom:48px;z-index:40;display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px}.debug-load-error button{padding:3px 7px;font-size:11px}
