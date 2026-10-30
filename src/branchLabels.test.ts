@@ -53,3 +53,11 @@ test('nearby merge and trunk badges move along their paths to stay readable',()=
  const labels=visibleBranchLabels(tracks,115,600,0,390,()=>80);
  assert.equal(labels.length,2);assert.ok(Math.abs(labels[0].boxY!-labels[1].boxY!)>=24);
 });
+test('compressed drawing coordinates retain the real lane identity and compact badge bounds',()=>{
+ const commits=[commit('main'),commit('side')],positions=new Map([['main',{x:48,y:100}],['side',{x:58,y:150}]]);
+ const tracks=branchTracks(commits,[{name:'main',commit:{sha:'main'}},{name:'side',commit:{sha:'side'}}],'main',new Set(['main']),positions,false,undefined,new Map([['main',0],['side',20]]));
+ assert.equal(tracks.find(track=>track.name==='side')!.lane,20);
+ const dense=Array.from({length:10},(_,index)=>({name:`branch-${index}`,lane:index,points:[{x:48+index*3,y:0},{x:48+index*3,y:900}]}));
+ const labels=visibleBranchLabels(dense,100,500,0,320,()=>90,18);
+ assert.equal(labels.length,10);assert.ok(labels.every(label=>label.boxX!>=8&&label.boxX!+90<=312&&label.boxY!>=100&&label.boxY!+18<=500));
+});
