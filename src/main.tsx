@@ -2,6 +2,8 @@ import React,{useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} fr
 import {createRoot} from 'react-dom/client';
 import {debug} from './debug';
 import {DebugRoot} from './DebugRoot';
+import {PwaUpdatePrompt} from './PwaUpdatePrompt';
+import {registerPwa} from './pwa';
 import {measureRefresh,useMeasuredOpen} from './measuredOperations';
 import {Graph} from './Graph';
 import {CommitDetails} from './CommitDetails';
@@ -69,7 +71,7 @@ function App(){
   if(!options&&!auth&&!details)return;
   const outside=(event:PointerEvent)=>{
    const target=event.target as Node;
-   if(target instanceof Element&&target.closest('[data-debug-ui]'))return;
+   if(target instanceof Element&&target.closest('[data-debug-ui],[data-pwa-ui]'))return;
    if(options&&!optionsRef.current?.contains(target))setOptions(false);
    if(auth&&!authRef.current?.contains(target)&&!tokenButtonRef.current?.contains(target))setAuth(false);
    if(details&&!detailsRef.current?.contains(target))setSelected(null);
@@ -83,7 +85,7 @@ function App(){
  function open(){setSelected(null);void measured.open(input,appliedToken);}
  function openTokenPopup(){setErrorDismissed(true);setOptions(false);setSelected(null);setAuth(true);}
  function select(commit:Commit){setSelected(commit);}
- return <div className="app" data-theme={resolvedTheme}>
+ return <div className="app" data-theme={resolvedTheme} style={{'--toolbar-bottom':`${topInset-20}px`} as React.CSSProperties}>
   <main className="graph-stage">
    {state.commits.length>0?<Graph key={`${state.repo}:${state.base}:${reverse}`} theme={resolvedTheme} commits={state.commits} branches={state.branches} branch={state.base} reverse={reverse} selected={selected?.sha||''} onSelect={select} hasMore={state.more&&!state.error} loading={state.busy} onLoadMore={history.loadMore} frontiers={state.frontiers} pendingSources={state.pendingSources} topInset={topInset} refreshVersion={state.refreshVersion} baseHead={state.baseHead} info={extras.bySha} onVisible={info.watch}/>:<div className="empty"><img className="empty-mark" src={logo} alt="" width="160" height="160"/><h1>Watch your Git history unfold.</h1>{!state.busy&&<p>Choose a repository. Explore its branches as they evolve.</p>}{!state.busy&&<button type="button" className="demo-button" aria-label={`Explore ${DEMO_REPO}`} onClick={()=>{setInput(DEMO_REPO);void measured.open(DEMO_REPO,appliedToken);}}><span>Explore</span><span className="demo-repository">{DEMO_REPO}</span></button>}</div>}
   </main>
@@ -109,8 +111,11 @@ function App(){
   {details&&<CommitDetails panelRef={detailsRef} commit={selected} onClose={()=>setSelected(null)} info={extras} onMore={info.loadMore}/>}
   {state.error&&!errorDismissed&&!auth&&<div className="error floating-panel" role="alert"><span className="error-message">{state.error}</span><div className="error-actions"><button disabled={state.busy||retrySeconds>0} onClick={()=>void history.retry()}>{retryLabel(retrySeconds)}</button>{state.error.includes('GitHub')&&<button onClick={openTokenPopup}>Access token</button>}</div></div>}
   <DebugRoot developer={import.meta.env.DEV}/>
+  <PwaUpdatePrompt/>
   <footer className="graph-status" aria-live="polite"><span><i/> {state.commits.length.toLocaleString()} commits</span>{state.busy||activeRequests>0||refreshState.running?<span className="history-loading" role="status" aria-label={activeRequests?`Loading history, ${activeRequests} active requests`:'Loading history'} aria-live="off"><span className="loading-spinner" data-speed={loadingSpeed} aria-hidden="true"/>{activeRequests>0&&<span className="request-count" aria-hidden="true">x{activeRequests}</span>}</span>:null}{state.discoveryError&&<button className="discovery-retry" title={state.discoveryError} aria-label="Retry recent branch discovery" disabled={state.busy||!!state.error||discoverySeconds>0} onClick={()=>void history.retryDiscovery()}>{discoverySeconds?retryLabel(discoverySeconds):"Retry branches"}</button>}{state.meta&&!refreshState.running&&(refreshRetrySeconds>0||!!refreshState.error||refreshState.lastSuccess!==null)&&<span className="refresh-status" role="status" title={refreshState.error||undefined}>{refreshRetrySeconds?`Retry in ${refreshRetrySeconds}s`:refreshState.error?'Refresh failed':refreshState.lastSuccess!==null?`Updated ${new Date(refreshState.lastSuccess).toLocaleTimeString()}`:''}</span>}{Object.keys(extras.errors).length>0&&<span className="metadata-error" title={Object.values(extras.errors).join(' · ')}>Metadata unavailable</span>}</footer>
  </div>;
 }
 debug.setMode(new URLSearchParams(location.search).get('debug')==='1'?'button':'off');
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+
+registerPwa();
