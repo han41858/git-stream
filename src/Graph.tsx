@@ -5,13 +5,16 @@ import {emptyGraphColors,graphColors} from './graphColors';
 import {monthMarkers} from './monthMarkers';
 import {emojify} from './emoji';
 import {FrontierViewport} from './FrontierViewport';
+import {actionText,attempt,runStatus,runElapsed,type CommitInfo} from './CommitInfo';
 const labelText=(names:string[])=>{const text=names.join(' · ');return text.length>34?`${text.slice(0,31)}…`:text;};
-type Props={theme:string;commits:Commit[];branches:Branch[];branch:string;reverse:boolean;onSelect:(c:Commit)=>void;selected:string;hasMore:boolean;loading:boolean;onLoadMore:(sources?:string[])=>void;frontiers:HistoryFrontier[];pendingSources:string[];topInset:number;baseHead?:string};
-export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,hasMore,loading,onLoadMore,frontiers,pendingSources,topInset,baseHead}:Props){
+type Props={theme:string;commits:Commit[];branches:Branch[];branch:string;reverse:boolean;onSelect:(c:Commit)=>void;selected:string;hasMore:boolean;loading:boolean;onLoadMore:(sources?:string[])=>void;frontiers:HistoryFrontier[];pendingSources:string[];topInset:number;baseHead?:string;info?:ReadonlyMap<string,CommitInfo>;onVisible?:(shas:string[])=>void};
+export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,hasMore,loading,onLoadMore,frontiers,pendingSources,topInset,baseHead,info,onVisible}:Props){
  const container=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),prior=useRef(new Map<string,number>());
  const priorColors=useRef(emptyGraphColors());
  const visited=useRef(new FrontierViewport()),encountered=useRef(new Set<string>()),captureFrontiers=useRef<()=>void>(()=>{});
  const [view,setView]=useState({top:0,width:800,height:600});
+ const [pageVisible,setPageVisible]=useState(()=>!document.hidden);
+ useEffect(()=>{const update=()=>setPageVisible(!document.hidden);document.addEventListener('visibilitychange',update);return()=>document.removeEventListener('visibilitychange',update);},[]);
  const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width:800px)').matches);
  useEffect(()=>{const media=window.matchMedia('(max-width:800px)');const update=()=>setMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  const head=baseHead||branches.find(b=>b.name===branch)?.commit.sha;
@@ -23,6 +26,11 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
  const months=useMemo(()=>monthMarkers(ordered,data.spine),[ordered,data,reverse]);
  const padding=topInset;
  const positions=useMemo(()=>new Map(ordered.map((c,i)=>[c.sha,{x:48+(data.lanes.get(c.sha)||0)*34,y:i*ROW+padding}])) ,[ordered,data,padding]);
+ const pendingActions=useMemo(()=>{
+  if(!pageVisible||!info)return [];
+  const first=Math.max(0,Math.ceil((view.top-20)/ROW)),last=Math.min(ordered.length,Math.floor((view.top+view.height-48-padding)/ROW)+1),left=container.current?.scrollLeft||0;
+  return ordered.slice(first,last).filter(commit=>{const summary=info.get(commit.sha)?.actions,point=positions.get(commit.sha)!;return summary?.state==='running'&&summary.ratio===null&&point.x>=left-12&&point.x<=left+view.width+12;});
+ },[ordered,positions,padding,view,info,pageVisible]);
  const tracks=useMemo(()=>branchTracks(commits,branches,branch,data.spine,positions,reverse,tones),[commits,branches,branch,data,positions,reverse,tones]);
  const maxLane=Array.from(data.lanes.values()).reduce((a,b)=>Math.max(a,b),0);
  const width=Math.max(view.width,(mobile?110:720)+maxLane*34),height=Math.max(view.height,ordered.length*ROW+padding+80);
@@ -36,6 +44,11 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
   lastOrder.current=ordered.map(c=>c.sha);
  },[ordered,padding,reverse]);
  useEffect(()=>{const el=container.current!;const observer=new ResizeObserver(()=>{const {clientWidth:width,clientHeight:height}=el;setView(v=>({...v,width,height}));});observer.observe(el);return()=>observer.disconnect();},[]);
+ useEffect(()=>{
+  if(!onVisible||!pageVisible)return;const first=Math.max(0,Math.ceil((view.top-20)/ROW)),last=Math.min(ordered.length,Math.floor((view.top+view.height-48-padding)/ROW)+1);
+  const el=container.current!;onVisible(ordered.slice(first,last).filter(c=>{const x=positions.get(c.sha)!.x;return x>=el.scrollLeft-20&&x<=el.scrollLeft+view.width+20;}).map(c=>c.sha));
+ },[ordered,positions,padding,view,onVisible,pageVisible]);
+ const icons=(sha:string,x:number)=>{const data=info?.get(sha),items:{text:string;x:number;title:string}[]=[];if(data?.tags.length)items.push({text:'🏷️',x:0,title:data.tags.map(tag=>tag.name).join(' · ')});if(data?.releases.length)items.push({text:'🚀',x:0,title:data.releases.map(release=>release.name||release.tag_name).join(' · ')});items.forEach((icon,index)=>{icon.x=x-20-(items.length-1-index)*19;});return items;};
  useLayoutEffect(()=>{
   visited.current.rebase(ordered.map(commit=>commit.sha),padding,ROW);
   captureFrontiers.current=()=>{
@@ -83,6 +96,14 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
   for(const c of ordered){const p=positions.get(c.sha)!;if(p.y<view.top-ROW||p.y>view.top+view.height+ROW)continue;
    ctx.globalAlpha=1;ctx.fillStyle=colors[(tones.nodes.get(c.sha)||0)%colors.length];ctx.beginPath();ctx.arc(p.x,p.y,c.sha===selected?7:4.5,0,Math.PI*2);ctx.fill();
    if(c.parents.length>1){ctx.strokeStyle=text;ctx.lineWidth=1;ctx.stroke();}
+   const extra=info?.get(c.sha);
+   if(extra?.actions){
+    const summary=extra.actions,radius=c.sha===selected?10.5:7.5;ctx.strokeStyle=style.getPropertyValue(`--action-${summary.state}`).trim();ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(p.x,p.y,radius,0,Math.PI*2);ctx.globalAlpha=summary.state==='running'?0.25:1;
+    ctx.stroke();ctx.globalAlpha=1;
+    if(summary.state==='running'&&summary.ratio!==null){ctx.beginPath();ctx.arc(p.x,p.y,radius,-Math.PI/2,-Math.PI/2+Math.PI*2*summary.ratio);ctx.stroke();}
+   }
+   ctx.font='13px system-ui';ctx.textAlign='center';for(const icon of icons(c.sha,p.x))ctx.fillText(icon.text,icon.x,p.y+4);ctx.textAlign='left';
    const tx=140+maxLane*34;ctx.fillStyle=text;
    if(!mobile){ctx.font='13px system-ui';ctx.fillText(emojify(c.commit.message.split('\n')[0]).slice(0,85),tx,p.y-3);}
    if(!mobile){ctx.globalAlpha=0.5;ctx.font='11px monospace';ctx.fillText(`${c.sha.slice(0,7)}  ${c.commit.author?.name||'Unknown author'}`,tx,p.y+9);}
@@ -95,12 +116,12 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
    ctx.fillStyle=surface;ctx.beginPath();ctx.roundRect(x,y,boxWidth,22,5);ctx.fill();
    ctx.strokeStyle=colors[(label.color??label.lane)%colors.length];ctx.lineWidth=1;ctx.stroke();ctx.fillStyle=text;ctx.fillText(name,x+8,y+15);
   }
- },[theme,months,tones,tracks,padding,data,ordered,positions,branches,width,view,selected,mobile,maxLane,reverse]);
+ },[theme,months,tones,tracks,padding,data,ordered,positions,branches,width,view,selected,mobile,maxLane,reverse,info]);
  function pick(clientX:number,clientY:number){
   const el=container.current!,rect=el.getBoundingClientRect();const x=clientX-rect.left+el.scrollLeft,y=clientY-rect.top+el.scrollTop;
   const c=ordered[Math.round((y-padding)/ROW)];if(!c)return;
   const p=positions.get(c.sha)!;
-  return Math.abs(y-p.y)<=22&&(Math.abs(x-p.x)<=22||(!mobile&&x>=140+maxLane*34))?c:undefined;
+  return Math.abs(y-p.y)<=22&&(Math.abs(x-p.x)<=22||icons(c.sha,p.x).some(icon=>Math.abs(x-icon.x)<=9)||(!mobile&&x>=140+maxLane*34))?c:undefined;
  }
- return <div className="graph-scroll" ref={container} tabIndex={0} aria-label="Commit graph. Scroll to load more history." onScroll={e=>{captureFrontiers.current();const top=e.currentTarget.scrollTop;setView(v=>({...v,top}));}}><div style={{height,width,position:'relative'}}><canvas aria-label="Commit history graph. Tap a node to inspect it." ref={canvas} style={{position:'sticky',top:0,width,height:view.height,display:'block'}} onClick={e=>{const c=pick(e.clientX,e.clientY);if(c)onSelect(c);}} onMouseMove={e=>{const c=pick(e.clientX,e.clientY);e.currentTarget.title=c?`${c.sha.slice(0,7)} · ${emojify(c.commit.message.split('\n')[0])}`:'';}}/></div></div>;
+ return <div className="graph-scroll" ref={container} tabIndex={0} aria-label="Commit graph. Scroll to load more history." onScroll={e=>{captureFrontiers.current();const top=e.currentTarget.scrollTop;setView(v=>({...v,top}));}}><div style={{height,width,position:'relative'}}><canvas aria-label="Commit history graph. Tap a node to inspect it." ref={canvas} style={{position:'sticky',top:0,width,height:view.height,display:'block'}} onClick={e=>{const c=pick(e.clientX,e.clientY);if(c)onSelect(c);}} onMouseMove={e=>{const c=pick(e.clientX,e.clientY);if(!c){e.currentTarget.title='';return;}const extra=info?.get(c.sha),p=positions.get(c.sha)!,el=container.current!,x=e.clientX-el.getBoundingClientRect().left+el.scrollLeft;const icon=icons(c.sha,p.x).find(icon=>Math.abs(x-icon.x)<=9);e.currentTarget.title=[`${c.sha.slice(0,7)} · ${emojify(c.commit.message.split('\n')[0])}`,icon?.title,extra?.actions&&['running','queued'].includes(extra.actions.state)?`${actionText(extra.actions.state)}${extra.actions.ratio!==null?` · ${extra.actions.done}/${extra.actions.total} jobs`:''}`:'',...(extra?.runs||[]).map(run=>`${run.name||'Workflow'} · ${runStatus(run).label} · Elapsed ${runElapsed(run)||'—'} · Attempt ${attempt(run)}`)].filter(Boolean).join('\n');if(icon)onSelect(c);}}/>{pendingActions.map(commit=>{const point=positions.get(commit.sha)!,radius=commit.sha===selected?10.5:7.5;return <span key={commit.sha} className="actions-pending-ring" role="img" aria-label="GitHub Actions in progress; job counts not confirmed" style={{left:point.x-radius-1,top:point.y-radius-1,width:radius*2+2,height:radius*2+2}}/>;})}</div></div>;
 }
