@@ -1,13 +1,16 @@
 import type {Branch,Commit} from './model';
 import type {ClosedPull} from './recommendations';
+import {debug,type DebugCycle} from './debug';
 import {requestActivity} from './requestActivity';
 export type BranchActivity={ref:string;timestamp:string;activity_type:string};
 export class GitHubError extends Error {constructor(message:string,readonly status:number,readonly retryAt?:number){super(message);}}
 export type GitHubPage<T>={data:T;next:boolean;lastPage?:number;nextCursor?:string;etag?:string;oauthScopes?:string[]};
-export async function github<T>(path:string,token:string,signal?:AbortSignal,cached?:GitHubPage<T>):Promise<GitHubPage<T>>{
+export async function github<T>(path:string,token:string,signal?:AbortSignal,cached?:GitHubPage<T>,cycle?:DebugCycle):Promise<GitHubPage<T>>{
+ const probe=debug.request(path,!!cached?.etag,cycle??debug.forSignal(signal),signal?.aborted);
  const finish=requestActivity.begin(signal);
  try{
  let r:Response;try{r=await fetch(`https://api.github.com${path}`,{signal,headers:{Accept:'application/vnd.github+json',...(token?{Authorization:`Bearer ${token}`} :{}),...(cached?.etag?{'If-None-Match':cached.etag}:{})}});}catch(e){if(signal?.aborted)throw e;throw new Error('Could not reach GitHub. Check your connection and retry.');}
+ probe?.response(r);
  if(r.status===304&&cached)return cached;
  if(!r.ok){
   if(r.status===403||r.status===429){
@@ -31,7 +34,7 @@ export async function github<T>(path:string,token:string,signal?:AbortSignal,cac
  const next=link.match(/<([^>]+)>;\s*rel="next"/);
  const cursor=next?new URL(next[1],'https://api.github.com').searchParams.get('after'):null;
  return {data:await r.json(),next:/rel="next"/.test(link),...(Number.isSafeInteger(page)&&page>0?{lastPage:page}:{}),...(cursor?{nextCursor:cursor}:{}),...(r.headers.get('ETag')?{etag:r.headers.get('ETag')!}:{}),...(r.headers.has('X-OAuth-Scopes')?{oauthScopes:r.headers.get('X-OAuth-Scopes')!.split(',').map(scope=>scope.trim()).filter(Boolean)}:{})};
- }finally{finish();}
+ }catch(error){probe?.finish(signal?.aborted||error instanceof DOMException&&error.name==='AbortError'?'cancelled':'failed');throw error;}finally{probe?.finish('success');finish();}
 }
 export const commitsPage=(repo:string,branch:string,page:number,token:string,signal?:AbortSignal,since?:number)=>github<Commit[]>(`/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=100&page=${page}${since===undefined?'':`&since=${encodeURIComponent(new Date(since).toISOString())}`}`,token,signal);
 export const branchesPage=(repo:string,page:number,token:string,signal?:AbortSignal)=>github<Branch[]>(`/repos/${repo}/branches?per_page=100&page=${page}`,token,signal);
