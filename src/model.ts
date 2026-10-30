@@ -1,5 +1,3 @@
-import {debug} from './debug';
-
 export type Commit = { sha: string; parents: {sha:string}[]; commit: {message:string; author:{name:string;date:string}|null; committer:{date:string}|null}; html_url:string };
 export type Branch = {name:string;commit:{sha:string}};
 export type HistoryFrontier = {sha:string;sources:string[]};
@@ -11,7 +9,6 @@ export function commitTime(commit:Commit){
   return NaN;
 }
 export function layout(commits: Commit[], previous = new Map<string,number>(), baseHead?:string) {
-  const started=debug.startTime();
   const map = new Map(commits.map(c=>[c.sha,c]));
   const children = new Map<string,number>();
   for(const c of map.values()) for(const p of c.parents) if(map.has(p.sha)) children.set(p.sha,(children.get(p.sha)||0)+1);
@@ -56,7 +53,6 @@ export function layout(commits: Commit[], previous = new Map<string,number>(), b
       const slot=i===0&&!spine.has(c.sha)?lane:free();active[slot]=p.sha;
     });
   }
-  debug.layout(started,commits);
   return {ordered,lanes,spine};
 }
 export function ancestors(sha:string, commits:Commit[]){const map=new Map(commits.map(c=>[c.sha,c]));const found=new Set<string>();const todo=[sha];while(todo.length){const s=todo.pop()!;if(found.has(s))continue;found.add(s);for(const p of map.get(s)?.parents||[])todo.push(p.sha);}return found;}

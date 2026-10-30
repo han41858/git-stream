@@ -1,4 +1,4 @@
-import {useEffect,useState,useSyncExternalStore} from 'react';
+import {useState,useSyncExternalStore} from 'react';
 import {debug} from './debug';
 import {requestActivity} from './requestActivity';
 import './debug.css';
@@ -36,10 +36,7 @@ function Panel(){
   <div className="debug-tools"><button onClick={()=>void copy()}>Copy diagnostics</button><button onClick={debug.print}>Console</button><button onClick={debug.reset}>Reset</button><button onClick={()=>debug.setMode('off')}>Disable debug</button><span role="status">{copied}</span></div>
  </section>;
 }
-export function DebugRoot({developer}:{developer:boolean}){
- const mode=useSyncExternalStore(debug.subscribeMode,debug.getMode);
- useEffect(()=>{if(!developer)return;const key=(event:KeyboardEvent)=>{if(event.ctrlKey&&event.shiftKey&&event.code==='KeyD'){event.preventDefault();debug.toggle();}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[developer]);
- useEffect(()=>{if(mode==='off')return;const visibility=()=>debug.setHidden(document.hidden);visibility();document.addEventListener('visibilitychange',visibility);return()=>document.removeEventListener('visibilitychange',visibility);},[mode==='off']);
- if(mode==='off')return null;
- return <>{mode==='panel'?<Panel/>:<button className="debug-entry" data-debug-ui aria-label="Open developer diagnostics" onKeyDown={event=>{if(event.key==='Escape')event.stopPropagation();}} onClick={()=>debug.setMode('panel')}>Debug</button>}</>;
+// Loaded on demand by DebugRoot, so users who never enable debug mode do not download the panel or its styles.
+export default function DebugUI({mode}:{mode:'button'|'panel'}){
+ return mode==='panel'?<Panel/>:<button className="debug-entry" data-debug-ui aria-label="Open developer diagnostics" onKeyDown={event=>{if(event.key==='Escape')event.stopPropagation();}} onClick={()=>debug.setMode('panel')}>Debug</button>;
 }

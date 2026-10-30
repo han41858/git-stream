@@ -1,6 +1,7 @@
 import {debug} from './debug';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {layout,ROW,type Commit,type Branch,type HistoryFrontier} from './model';
+import {ROW,type Commit,type Branch,type HistoryFrontier} from './model';
+import {measuredLayout} from './measuredLayout';
 import {branchTracks,visibleBranchLabels} from './branchLabels';
 import {emptyGraphColors,graphColors} from './graphColors';
 import {monthMarkers} from './monthMarkers';
@@ -20,7 +21,7 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
  const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width:800px)').matches);
  useEffect(()=>{const media=window.matchMedia('(max-width:800px)');const update=()=>setMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  const head=baseHead||branches.find(b=>b.name===branch)?.commit.sha;
- const data=useMemo(()=>layout(commits,prior.current,head),[commits,head]);
+ const data=useMemo(()=>measuredLayout(commits,prior.current,head),[commits,head]);
  useEffect(()=>{prior.current=data.lanes;},[data]);
  const tones=useMemo(()=>graphColors(commits,data.ordered,branches,branch,data.spine,priorColors.current),[commits,data,branches,branch]);
  useLayoutEffect(()=>{priorColors.current=tones;},[tones]);

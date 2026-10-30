@@ -8,7 +8,8 @@ import {requestActivity} from './requestActivity';
 import {History} from './history';
 import {CommitInfoStore} from './CommitInfoStore';
 import {captureChanges,changeCounts} from './debugChanges';
-import {layout,type Commit} from './model';
+import type {Commit} from './model';
+import {measuredLayout} from './measuredLayout';
 const snapshot=(metrics:DebugMetrics=debug):DebugSnapshot=>JSON.parse(metrics.diagnostics());
 const flush=()=>new Promise<void>(resolve=>setImmediate(resolve));
 const response=(data:unknown,headers:Record<string,string>={})=>new Response(JSON.stringify(data),{headers});
@@ -110,7 +111,7 @@ test('initial, unchanged 304 and changed refreshes measure existing stores witho
   const array=history.getSnapshot().commits,start=calls;await Promise.all([history.refresh(unchanged),info.refresh(false,undefined,unchanged)]);debug.finish(unchanged);
   let sample=snapshot().cycles.at(-1)!;assert.equal(sample.requests,calls-start);assert.equal(sample.requests,5);assert.equal(sample.notModified,5);assert.equal(sample.commitsAdded+sample.branchesChanged+sample.tagsChanged+sample.releasesChanged+sample.actionsChanged,0);assert.equal(history.getSnapshot().commits,array);assert.equal(sample.layouts,0);
   phase=2;before=captureChanges(history.getSnapshot(),info.getSnapshot());const changed=debug.beginCycle('manual',()=>changeCounts(before,captureChanges(history.getSnapshot(),info.getSnapshot())))!;
-  await Promise.all([history.refresh(changed),info.refresh(false,undefined,changed)]);layout(history.getSnapshot().commits);debug.finish(changed);sample=snapshot().cycles.at(-1)!;
+  await Promise.all([history.refresh(changed),info.refresh(false,undefined,changed)]);measuredLayout(history.getSnapshot().commits);debug.finish(changed);sample=snapshot().cycles.at(-1)!;
   assert.equal(sample.commitsAdded,1);assert.equal(sample.branchesAdded,1);assert.equal(sample.branchesRemoved,1);assert.equal(sample.branchesChanged,1);assert.equal(sample.tagsChanged,2);assert.equal(sample.releasesChanged,1);assert.equal(sample.actionsChanged,1);assert.equal(sample.layouts,1);assert.ok(sample.types.commits);
   assert.ok(!debug.diagnostics().includes('PRIVATE'));assert.equal(requestActivity.getSnapshot(),0);assert.equal(requestActivity.getQueuedSnapshot(),0);
  }finally{history.cancel();info.cancel();debug.setMode('off');globalThis.fetch=old;console.debug=log;}
