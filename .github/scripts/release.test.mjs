@@ -95,6 +95,13 @@ test('Preview success never creates tags or releases', async () => {
   assert.equal((await publishRelease(f.api)).eligible, false); assert.equal(f.writes().length, 0);
 });
 
+test('Vercel Production succeeds even when GitHub production_environment is false', async () => {
+  const f = fixture(); f.state.deployment.production_environment = false;
+  const result = await publishRelease(f.api);
+  assert.equal(result.created, true); assert.equal(result.sha, SHA);
+  assert.equal(f.state.releases.length, 1);
+});
+
 test('failure events and another sender cannot request release writes', async () => {
   for (const change of [f => { f.context.payload.deployment_status.state = 'failure'; },
     f => { f.context.payload.sender = { id: 1, login: 'other', type: 'User' }; }]) {

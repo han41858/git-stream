@@ -57,7 +57,9 @@ export async function inspectDeployment({ github, context, core }) {
   const scope = { ...params(context), deployment_id: Number(id) };
   const { data: deployment } = await github.rest.repos.getDeployment(scope);
   if (!vercelBot(deployment.creator)) throw new Error('Deployment was not created by Vercel.');
-  if (deployment.environment?.toLowerCase() !== 'production' || deployment.production_environment !== true || deployment.transient_environment) {
+  // Vercel can label a deployment Production while leaving GitHub's optional
+  // production_environment flag false. Verify its label, bot, project and SHA.
+  if (deployment.environment?.toLowerCase() !== 'production' || deployment.transient_environment) {
     core?.info('Preview or non-production deployment: no release.');
     return { eligible: false, reason: 'Not a Production deployment.' };
   }
