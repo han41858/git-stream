@@ -21,7 +21,7 @@ function App(){
  const discoverySeconds=useRetryCountdown(state.discoveryRetryAt);
  const [input,setInput]=useState(new URLSearchParams(location.search).get('repo')||'');
  const [savedToken]=useState(readStoredToken);
- const [token,setToken]=useState(savedToken.token),[tokenStorageError,setTokenStorageError]=useState(savedToken.error),[auth,setAuth]=useState(false),[theme,setTheme]=useState('system'),[options,setOptions]=useState(false);
+ const [token,setToken]=useState(savedToken.token),[tokenStorageError,setTokenStorageError]=useState(savedToken.error),[tokenApplied,setTokenApplied]=useState(savedToken.token!==''),[auth,setAuth]=useState(false),[theme,setTheme]=useState('system'),[options,setOptions]=useState(false);
  const [systemTheme,setSystemTheme]=useState(()=>window.matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');
  const resolvedTheme=theme==='system'?systemTheme:theme;
  useEffect(()=>{const media=window.matchMedia('(prefers-color-scheme:light)');const update=()=>setSystemTheme(media.matches?'light':'dark');media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
@@ -44,8 +44,8 @@ function App(){
   document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
   return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
  },[options]);
- function applyToken(){const value=token.trim(),error=saveStoredToken(value);setToken(value);setTokenStorageError(error);history.setToken(value);setAuth(!!error);if(state.repo){setSelected(null);setDetails(false);void history.open(state.repo,value);}}
- function removeToken(){const error=saveStoredToken('');history.clear();setToken('');setTokenStorageError(error);setSelected(null);setDetails(false);setAuth(!!error);}
+ function applyToken(){const value=token.trim(),error=saveStoredToken(value);setToken(value);setTokenStorageError(error);history.setToken(value);setTokenApplied(value!=='');setAuth(!!error);if(state.repo){setSelected(null);setDetails(false);void history.open(state.repo,value);}}
+ function removeToken(){const error=saveStoredToken('');history.clear();setToken('');setTokenApplied(false);setTokenStorageError(error);setSelected(null);setDetails(false);setAuth(!!error);}
  function open(){setSelected(null);setDetails(false);void history.open(input,token);}
  function select(commit:Commit){setSelected(commit);setDetails(true);}
  return <div className="app" data-theme={resolvedTheme}>
@@ -57,7 +57,7 @@ function App(){
    <form className="repo-form" onSubmit={e=>{e.preventDefault();open();}}><input aria-label="GitHub repository" value={input} onChange={e=>setInput(e.target.value)} placeholder="owner/repository"/><button type="submit" className="primary explore-button" aria-label="Explore repository" title="Explore repository"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button></form>
    <div className="view-controls"><div className="base-control"><BranchPicker history={history} state={state} onPicked={()=>{setSelected(null);setDetails(false);}}/></div>
     <button className="direction-toggle" aria-label={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} title={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} aria-pressed={reverse} onClick={()=>{setSelected(null);setDetails(false);void history.setDirection(!reverse);}}>{reverse?'↓ Newer':'↓ Older'}</button>
-    <button className="token-button" aria-label="Access token" title="Access token" aria-expanded={auth} onClick={()=>{setAuth(!auth);setOptions(false);}}><svg className="ticket-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6z"/><path d="M15 5v2M15 11v2M15 17v2"/></svg><span className="token-label">Token</span></button>
+    <button className="token-button" aria-label={tokenApplied?'Access token (applied)':'Access token'} title={tokenApplied?'Access token applied':'Access token'} aria-expanded={auth} onClick={()=>{setAuth(!auth);setOptions(false);}}><svg className={`ticket-icon${tokenApplied?' applied':''}`} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6z"/><path d="M15 5v2M15 11v2M15 17v2"/></svg><span className="token-label">Token</span></button>
     <div className="options" ref={optionsRef}><button className="options-trigger" aria-label="Options" aria-expanded={options} aria-controls="options-menu" onClick={()=>setOptions(!options)}>•••</button>{options&&<section className="options-menu floating-panel" id="options-menu" aria-label="View options"><label>Theme<select aria-label="Color theme" value={theme} onChange={e=>setTheme(e.target.value)}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label></section>}</div>
    </div>
   </header>
