@@ -144,3 +144,18 @@ test('a failed completed snapshot remains unknown and retries once per later ref
   await store.refresh();assert.equal(count(),3);
  });
 });
+test('closing commit details clears the metadata selection and reuses cached data when reopened',async()=>{
+ await using(url=>url.pathname.endsWith('/actions/runs')?response({workflow_runs:[run(1,'completed')]}):undefined,async(store,requests)=>{
+  await store.open('a/b','');await store.inspect('a');const cached=store.getSnapshot().bySha,count=requests.length;
+  store.clearSelection();assert.equal(store.getSnapshot().selected,'');assert.equal(store.getSnapshot().bySha,cached);assert.equal(store.getSnapshot().checked.has('a'),true);
+  await store.inspect('a');assert.equal(store.getSnapshot().selected,'a');assert.equal(store.getSnapshot().bySha,cached);assert.equal(requests.length,count);
+ });
+});
+test('a lookup that finishes after details close caches its result without restoring selection',async()=>{
+ let finish!:(value:Response)=>void;
+ await using(url=>url.searchParams.get('head_sha')==='old'?new Promise<Response>(resolve=>{finish=resolve;}):undefined,async store=>{
+  await store.open('a/b','');const pending=store.inspect('old');await new Promise(resolve=>setImmediate(resolve));
+  store.clearSelection();assert.equal(store.getSnapshot().selected,'');finish(response({workflow_runs:[run(1,'completed',1,'old')]}));await pending;
+  assert.equal(store.getSnapshot().selected,'');assert.equal(store.getSnapshot().bySha.has('old'),true);assert.equal(store.getSnapshot().checked.has('old'),true);
+ });
+});

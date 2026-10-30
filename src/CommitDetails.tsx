@@ -34,8 +34,7 @@ export function CommitDetails({commit,onClose,info,onMore,panelRef}:{commit:Comm
     <code className="commit-sha">{commit.sha.slice(0,7)}</code>
     {date&&<time className="commit-authored" dateTime={authored!} title={date.toLocaleString()}>{date.toLocaleString(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</time>}
    </div>
-   <h2>{emojify(commit.commit.message.split('\n')[0])}</h2>
-   {commit.commit.author?.name&&<p className="commit-author">{commit.commit.author.name}</p>}
+   <h2>{emojify(commit.commit.message.split('\n')[0])}{commit.commit.author?.name&&<> <span className="commit-author">by {commit.commit.author.name}</span></>}</h2>
    {body.trim()&&<pre>{emojify(body)}</pre>}{info&&<CommitExtras sha={commit.sha} info={info}/>}
   </>:<p>Tap a node to inspect a commit.</p>}
  </aside>;
