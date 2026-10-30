@@ -1,3 +1,4 @@
+import {debug,type DebugCycle} from './debug';
 import {GitHubError,branchByName,branchesPage,closedPullsPage,commitsPage,github,branchActivityPage} from './api';
 import {preferredBranch,PullCounts,RECOMMENDATION_LIMIT} from './recommendations';
 import {RequestPool} from './RequestPool';
@@ -12,6 +13,7 @@ const empty = ():HistorySnapshot => ({repo:'',refreshVersion:0,baseHead:'',refre
 // live heads that cannot be discovered by following the selected head's parents.
 export class History {
  private snapshot=empty();
+ private debugInitial?:DebugCycle;
  private refreshReader:GitHubReader|null=null;
  private branchScan:{page:number;refs:Map<string,Branch>}|null=null;
  private catalogComplete=false;
@@ -60,7 +62,7 @@ export class History {
  }
  private current(signal:AbortSignal){signal.throwIfAborted();}
  private async run(task:(signal:AbortSignal)=>Promise<void>,clearError=true) {
-  const controller=new AbortController();this.controllers.add(controller);
+  const controller=new AbortController();this.controllers.add(controller);debug.bind(controller.signal,this.debugInitial);
   this.publish({busy:true,...(clearError?{error:'',retryAt:null}:{})});
   try {await task(controller.signal);}
   catch(error){
@@ -71,9 +73,9 @@ export class History {
   }
   finally {if(this.controllers.delete(controller)&&!controller.signal.aborted)this.publish({busy:this.controllers.size>0});}
  }
- cancel=()=>{this.refreshReader?.cancel();this.generation++;for(const controller of this.controllers)controller.abort();this.rankingController?.abort();this.searchController?.abort();};
+ cancel=()=>{this.refreshReader?.cancel();this.generation++;for(const controller of this.controllers){debug.cancelSignal(controller.signal);controller.abort();}this.rankingController?.abort();this.searchController?.abort();};
  private resetTraversal(){
-  for(const controller of this.controllers)controller.abort();this.controllers.clear();this.generation++;
+  for(const controller of this.controllers){debug.cancelSignal(controller.signal);controller.abort();}this.controllers.clear();this.generation++;
   this.refreshReader?.cancel();this.refreshReader=null;this.branchScan=null;this.catalogComplete=!this.refsNext;this.refreshing=null;
   this.commitPool=new RequestPool();this.commitPages.clear();this.commitRequests.clear();this.sourceTasks.clear();this.failedSources.clear();this.discoveryTask=null;
   this.commits.clear();this.queried.clear();
@@ -81,8 +83,8 @@ export class History {
  }
  private fetchCommits(ref:string,page:number,signal:AbortSignal,since?:number){
   const key=`${ref}:${page}:${since??''}`;
-  const cached=this.commitPages.get(key);if(cached)return Promise.resolve(cached);
-  const existing=this.commitRequests.get(key);if(existing)return existing;
+  const cached=this.commitPages.get(key);if(cached){debug.cache('commits',debug.forSignal(signal));return Promise.resolve(cached);}
+  const existing=this.commitRequests.get(key);if(existing){debug.cache('commits',debug.forSignal(signal),'shared');return existing;}
   const repo=this.snapshot.repo,token=this.token;
   const request=this.commitPool.run(signal,()=>commitsPage(repo,ref,page,token,signal,since)).then(result=>{signal.throwIfAborted();if(/^[a-f0-9]{40}$/i.test(ref))this.commitPages.set(key,result);return result;}).finally(()=>{
    if(this.commitRequests.get(key)===request)this.commitRequests.delete(key);
@@ -95,7 +97,7 @@ export class History {
   this.deletedRefs.clear();this.activity.clear();this.activityCursor=undefined;this.activityRequested.clear();this.activityNext=true;this.oldestActivity=Infinity;
   this.refsPage=0;this.refsNext=false;this.snapshot=empty();this.publish();
  };
- private integrate(data:Commit[],patch:Partial<HistorySnapshot>={}){
+ private integrate(data:Commit[],patch:Partial<HistorySnapshot>={},cycle=this.debugInitial){
   let changed=this.snapshot.commits.length!==this.commits.size||this.snapshot.commits.some(commit=>!this.commits.has(commit.sha));for(const commit of data)if(!this.commits.has(commit.sha)){this.commits.set(commit.sha,commit);changed=true;}
   const frontiers:HistoryFrontier[]=[];
   if(this.snapshot.reverse){
@@ -112,7 +114,8 @@ export class History {
   }
   const range=this.historyRange();
   if(range&&this.activityNeeded(range))frontiers.push({sha:range.anchor,sources:['activity']});
-  this.publish({...patch,...(changed?{commits:[...this.commits.values()]}:{}),frontiers});
+  const commits=changed?[...this.commits.values()]:this.snapshot.commits;debug.bindGraph(commits,cycle);
+  this.publish({...patch,...(changed?{commits}:{}),frontiers});
  }
  private async start(signal:AbortSignal){
   const first=await this.fetchCommits(this.snapshot.base,1,signal);this.current(signal);
@@ -207,16 +210,16 @@ export class History {
   // Ref pagination enriches labels/picker choices without fetching any commits.
   this.addRefs(result.data.filter(ref=>ref.name!==this.snapshot.base||!this.started));
  }
- refresh=():Promise<{error?:string;retryAt?:number}>=>{
-  if(this.refreshing)return this.refreshing;
+ refresh=(cycle?:DebugCycle):Promise<{error?:string;retryAt?:number}>=>{
+  if(this.refreshing){debug.cache('other',cycle,'shared');return this.refreshing;}
   if(!this.started||!this.snapshot.meta||this.snapshot.busy)return Promise.resolve({});
   if(this.snapshot.retryAt&&this.snapshot.retryAt>Date.now())return Promise.resolve({error:this.snapshot.error,retryAt:this.snapshot.retryAt});
   const generation=this.generation;
-  const task=this.refreshCurrent().finally(()=>{if(this.refreshing===task)this.refreshing=null;});this.refreshing=task;return task.then(result=>generation===this.generation?result:{});
+  const task=this.refreshCurrent(cycle).finally(()=>{if(this.refreshing===task)this.refreshing=null;});this.refreshing=task;return task.then(result=>generation===this.generation?result:{});
  };
- private async refreshCurrent():Promise<{error?:string;retryAt?:number}>{
+ private async refreshCurrent(cycle?:DebugCycle):Promise<{error?:string;retryAt?:number}>{
   const reader=this.refreshReader??(this.refreshReader=new GitHubReader(this.token));
-  const signal=reader.controller.signal,repo=this.snapshot.repo;
+  const signal=reader.controller.signal,repo=this.snapshot.repo;debug.bind(signal,cycle);
   try{
    const meta=(await reader.get<Meta>(`/repos/${repo}`)).data;signal.throwIfAborted();
    const scan=this.branchScan??{page:1,refs:new Map<string,Branch>()};this.branchScan=scan;
@@ -232,7 +235,7 @@ export class History {
    const pinned=this.snapshot.reverse&&this.nextPage>0;
    const changed=[...scan.refs.values()].filter(ref=>(ref.name===this.snapshot.base||previous.has(ref.name)||this.catalogComplete)&&previous.get(ref.name)?.commit.sha!==ref.commit.sha);
    const results=await Promise.allSettled(changed.filter(ref=>!(pinned&&ref.name===this.snapshot.base)).map(async ref=>{
-    if(this.commits.has(ref.commit.sha))return [] as Commit[];
+    if(this.commits.has(ref.commit.sha)){debug.cache('commits',cycle);return [] as Commit[];}
     const since=ref.name===this.snapshot.base?undefined:this.historyRange()?.min;
     const result=await this.fetchCommits(ref.commit.sha,1,signal,since);signal.throwIfAborted();
     const data=result.data.filter(commit=>since===undefined||!Number.isFinite(commitTime(commit))||commitTime(commit)>=since);
@@ -253,17 +256,17 @@ export class History {
    while(todo.length){const sha=todo.pop()!;if(reachable.has(sha))continue;reachable.add(sha);const commit=this.commits.get(sha);if(!commit){partial=true;continue;}for(const parent of commit.parents)todo.push(parent.sha);}
    if(!partial&&base&&!pinned){for(const sha of this.commits.keys())if(!reachable.has(sha))this.commits.delete(sha);}
    else if(base)patch.refreshNotice='Some branch ancestry is not loaded; cached commits are retained.';
-   this.integrate([],patch);return {};
+   this.integrate([],patch,cycle);return {};
   }catch(error){
-   if(signal.aborted)return {};
+   if(signal.aborted){if(cycle)cycle.cancelled=true;return {};}
    const message=(error as Error).message,retryAt=error instanceof GitHubError?error.retryAt:undefined;
    this.publish({refreshError:message});return {error:message,retryAt};
   }
  }
- open=async(value:string,token=this.token)=>{
+ open=async(value:string,token=this.token,cycle?:DebugCycle)=>{
   let repo:string;
   try{repo=parseRepo(value);}catch(e){this.publish({error:(e as Error).message});return;}
-  this.clear();this.token=token;this.refsNext=true;this.publish({repo});
+  this.clear();this.debugInitial=cycle;this.token=token;this.refsNext=true;this.publish({repo});
   await this.run(async signal=>{
    const {data:meta}=await github<Meta>(`/repos/${repo}`,this.token,signal);
    this.current(signal);this.publish({meta,base:meta.default_branch});

@@ -1,5 +1,8 @@
 import React,{useEffect,useLayoutEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {createRoot} from 'react-dom/client';
+import {debug,noChanges,type DebugCycle} from './debug';
+import {captureChanges,changeCounts} from './debugChanges';
+import {DebugRoot} from './DebugPanel';
 import {Graph} from './Graph';
 import {CommitDetails} from './CommitDetails';
 import {BranchPicker} from './BranchPicker';
@@ -21,7 +24,31 @@ function App(){
  const [history]=useState(()=>new History());
  const [info]=useState(()=>new CommitInfoStore());
  const extras=useSyncExternalStore(info.subscribe,info.getSnapshot);
- const [loop]=useState(()=>new RefreshLoop(async()=>{const results=await Promise.all([history.refresh(),info.refresh()]);return {error:results.map(result=>result.error).filter(Boolean).join(' · ')||undefined,retryAt:Math.max(0,...results.map(result=>result.retryAt||0))};},()=>!document.hidden&&navigator.onLine));
+ const [loop]=useState(()=>new RefreshLoop(async kind=>{
+  const before=debug.enabled()?captureChanges(history.getSnapshot(),info.getSnapshot()):undefined;
+  const cycle:DebugCycle|undefined=before?debug.beginCycle(kind,()=>cycle?.cancelled?noChanges():changeCounts(before,captureChanges(history.getSnapshot(),info.getSnapshot()))):undefined;
+  debug.bindGraph(history.getSnapshot().commits,cycle);
+  try{
+   const results=await Promise.all([history.refresh(cycle),info.refresh(false,undefined,cycle)]);
+   const error=results.map(result=>result.error).filter(Boolean).join(' · ')||undefined;
+   debug.finish(cycle,'work',error?'failed':'completed');
+   return {error,retryAt:Math.max(0,...results.map(result=>result.retryAt||0))};
+  }catch(error){debug.finish(cycle,'work','failed');throw error;}
+ },()=>!document.hidden&&navigator.onLine));
+ const initial=useRef<{cycle:DebugCycle;metadataStarted:boolean}|null>(null);
+ function cancelInitial(){const current=initial.current;if(current){current.cycle.cancelled=true;if(!current.metadataStarted)debug.finish(current.cycle,'metadata','cancelled');}}
+ function openMeasured(value:string,token:string){
+  cancelInitial();
+  if(!debug.enabled()){initial.current=null;return history.open(value,token);}
+  const baseline={commits:new Map(),branches:new Map(),tags:new Map(),releases:new Map(),actions:new Map()};
+  const cycle:DebugCycle=debug.beginCycle('initial',()=>cycle.cancelled||!cycle.sample.requests?noChanges():changeCounts(baseline,captureChanges(history.getSnapshot(),info.getSnapshot())),['history','metadata'])!;
+  const current={cycle,metadataStarted:false};initial.current=current;
+  return history.open(value,token,cycle).finally(()=>{
+   const snapshot=history.getSnapshot();
+   debug.finish(cycle,'history',snapshot.error?'failed':'completed');
+   if(!current.metadataStarted&&(!!snapshot.error||!snapshot.meta||cycle.cancelled||info.getSnapshot().repo===snapshot.repo&&!info.getSnapshot().busy))debug.finish(cycle,'metadata');
+  });
+ }
  const refreshState=useSyncExternalStore(loop.subscribe,loop.getSnapshot);
  const state=useSyncExternalStore(history.subscribe,history.getSnapshot);
  const activeRequests=useSyncExternalStore(requestActivity.subscribe,requestActivity.getSnapshot);
@@ -50,17 +77,24 @@ function App(){
  const [selected,setSelected]=useState<Commit|null>(null);
  const details=selected!==null;
  const reverse=state.reverse;
- useEffect(()=>{void info.open(state.meta?state.repo:'',appliedToken);return()=>info.cancel();},[info,state.repo,!!state.meta,appliedToken,authRevision]);
+ useEffect(()=>{
+  const current=state.meta?initial.current:null;
+  if(current&&!current.cycle.cancelled)current.metadataStarted=true;
+  const task=info.open(state.meta?state.repo:'',appliedToken,current?.cycle);
+  if(current)void task.finally(()=>debug.finish(current.cycle,'metadata',Object.keys(info.getSnapshot().errors).length?'failed':'completed'));
+  return()=>info.cancel();
+ },[info,state.repo,!!state.meta,appliedToken,authRevision]);
  useEffect(()=>{loop.configure(state.meta?`${state.repo}:${authRevision}`:'',autoRefresh,seconds*1000);},[loop,state.repo,!!state.meta,authRevision,autoRefresh,seconds]);
  useEffect(()=>{const changed=()=>loop.visibilityChanged();document.addEventListener('visibilitychange',changed);window.addEventListener('online',changed);window.addEventListener('offline',changed);return()=>{loop.stop();document.removeEventListener('visibilitychange',changed);window.removeEventListener('online',changed);window.removeEventListener('offline',changed);};},[loop]);
  useEffect(()=>{if(state.meta&&!state.busy&&extras.repo===state.repo&&!extras.busy&&!Object.keys(extras.errors).length&&!state.error)loop.loaded();},[loop,state.meta,state.busy,state.error,extras]);
  useEffect(()=>{if(extras.repo===state.repo){if(selected)void info.inspect(selected.sha);else info.clearSelection();}},[info,selected?.sha,extras.repo,state.repo]);
- useEffect(()=>{history.setToken(savedToken.token);if(input)void history.open(input,savedToken.token);return()=>history.cancel();},[history,savedToken]);
- useEffect(()=>{if(state.meta)window.history.replaceState(null,'',`?repo=${encodeURIComponent(state.repo)}`);},[state.repo,state.meta]);
+ useEffect(()=>{history.setToken(savedToken.token);if(input)void openMeasured(input,savedToken.token);return()=>{cancelInitial();history.cancel();};},[history,savedToken]);
+ useEffect(()=>{if(state.meta){const url=new URL(location.href);url.searchParams.set('repo',state.repo);window.history.replaceState(null,'',url.pathname+url.search+url.hash);}},[state.repo,state.meta]);
  useEffect(()=>{
   if(!options&&!auth&&!details)return;
   const outside=(event:PointerEvent)=>{
    const target=event.target as Node;
+   if(target instanceof Element&&target.closest('[data-debug-ui]'))return;
    if(options&&!optionsRef.current?.contains(target))setOptions(false);
    if(auth&&!authRef.current?.contains(target)&&!tokenButtonRef.current?.contains(target))setAuth(false);
    if(details&&!detailsRef.current?.contains(target))setSelected(null);
@@ -69,14 +103,14 @@ function App(){
   document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
   return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
  },[options,auth,details]);
- function applyToken(){const value=token.trim(),error=saveStoredToken(value);setToken(value);setAppliedToken(value);setAuthRevision(v=>v+1);setTokenStorageError(error);history.setToken(value);setTokenApplied(value!=='');setAuth(true);if(state.repo){setSelected(null);void history.open(state.repo,value);}}
- function removeToken(){const error=saveStoredToken('');history.clear();void info.open('','');setToken('');setAppliedToken('');setAuthRevision(v=>v+1);setTokenApplied(false);setTokenStorageError(error);setSelected(null);setAuth(!!error);}
- function open(){setSelected(null);void history.open(input,appliedToken);}
+ function applyToken(){const value=token.trim(),error=saveStoredToken(value);setToken(value);setAppliedToken(value);setAuthRevision(v=>v+1);setTokenStorageError(error);history.setToken(value);setTokenApplied(value!=='');setAuth(true);if(state.repo){setSelected(null);void openMeasured(state.repo,value);}}
+ function removeToken(){cancelInitial();const error=saveStoredToken('');history.clear();void info.open('','');setToken('');setAppliedToken('');setAuthRevision(v=>v+1);setTokenApplied(false);setTokenStorageError(error);setSelected(null);setAuth(!!error);}
+ function open(){setSelected(null);void openMeasured(input,appliedToken);}
  function openTokenPopup(){setErrorDismissed(true);setOptions(false);setSelected(null);setAuth(true);}
  function select(commit:Commit){setSelected(commit);}
  return <div className="app" data-theme={resolvedTheme}>
   <main className="graph-stage">
-   {state.commits.length>0?<Graph key={`${state.repo}:${state.base}:${reverse}`} theme={resolvedTheme} commits={state.commits} branches={state.branches} branch={state.base} reverse={reverse} selected={selected?.sha||''} onSelect={select} hasMore={state.more&&!state.error} loading={state.busy} onLoadMore={history.loadMore} frontiers={state.frontiers} pendingSources={state.pendingSources} topInset={topInset} refreshVersion={state.refreshVersion} baseHead={state.baseHead} info={extras.bySha} onVisible={info.watch}/>:<div className="empty"><img className="empty-mark" src={logo} alt="" width="160" height="160"/><h1>Watch your Git history unfold.</h1>{!state.busy&&<p>Choose a repository. Explore its branches as they evolve.</p>}{!state.busy&&<button type="button" className="demo-button" aria-label={`Explore ${DEMO_REPO}`} onClick={()=>{setInput(DEMO_REPO);void history.open(DEMO_REPO,appliedToken);}}><span>Explore</span><span className="demo-repository">{DEMO_REPO}</span></button>}</div>}
+   {state.commits.length>0?<Graph key={`${state.repo}:${state.base}:${reverse}`} theme={resolvedTheme} commits={state.commits} branches={state.branches} branch={state.base} reverse={reverse} selected={selected?.sha||''} onSelect={select} hasMore={state.more&&!state.error} loading={state.busy} onLoadMore={history.loadMore} frontiers={state.frontiers} pendingSources={state.pendingSources} topInset={topInset} refreshVersion={state.refreshVersion} baseHead={state.baseHead} info={extras.bySha} onVisible={info.watch}/>:<div className="empty"><img className="empty-mark" src={logo} alt="" width="160" height="160"/><h1>Watch your Git history unfold.</h1>{!state.busy&&<p>Choose a repository. Explore its branches as they evolve.</p>}{!state.busy&&<button type="button" className="demo-button" aria-label={`Explore ${DEMO_REPO}`} onClick={()=>{setInput(DEMO_REPO);void openMeasured(DEMO_REPO,appliedToken);}}><span>Explore</span><span className="demo-repository">{DEMO_REPO}</span></button>}</div>}
   </main>
   <header className="topbar" ref={toolbarRef}>
    <a className="brand" href="./" aria-label="GitStream home"><img src={logo} alt="" width="36" height="36"/> GitStream</a>
@@ -99,7 +133,9 @@ function App(){
   </section>}
   {details&&<CommitDetails panelRef={detailsRef} commit={selected} onClose={()=>setSelected(null)} info={extras} onMore={info.loadMore}/>}
   {state.error&&!errorDismissed&&!auth&&<div className="error floating-panel" role="alert"><span className="error-message">{state.error}</span><div className="error-actions"><button disabled={state.busy||retrySeconds>0} onClick={()=>void history.retry()}>{retryLabel(retrySeconds)}</button>{state.error.includes('GitHub')&&<button onClick={openTokenPopup}>Access token</button>}</div></div>}
+  <DebugRoot developer={import.meta.env.DEV}/>
   <footer className="graph-status" aria-live="polite"><span><i/> {state.commits.length.toLocaleString()} commits</span>{state.busy||activeRequests>0||refreshState.running?<span className="history-loading" role="status" aria-label={activeRequests?`Loading history, ${activeRequests} active requests`:'Loading history'} aria-live="off"><span className="loading-spinner" data-speed={loadingSpeed} aria-hidden="true"/>{activeRequests>0&&<span className="request-count" aria-hidden="true">x{activeRequests}</span>}</span>:null}{state.discoveryError&&<button className="discovery-retry" title={state.discoveryError} aria-label="Retry recent branch discovery" disabled={state.busy||!!state.error||discoverySeconds>0} onClick={()=>void history.retryDiscovery()}>{discoverySeconds?retryLabel(discoverySeconds):"Retry branches"}</button>}{state.meta&&!refreshState.running&&(refreshRetrySeconds>0||!!refreshState.error||refreshState.lastSuccess!==null)&&<span className="refresh-status" role="status" title={refreshState.error||undefined}>{refreshRetrySeconds?`Retry in ${refreshRetrySeconds}s`:refreshState.error?'Refresh failed':refreshState.lastSuccess!==null?`Updated ${new Date(refreshState.lastSuccess).toLocaleTimeString()}`:''}</span>}{Object.keys(extras.errors).length>0&&<span className="metadata-error" title={Object.values(extras.errors).join(' · ')}>Metadata unavailable</span>}</footer>
  </div>;
 }
+debug.setMode(new URLSearchParams(location.search).get('debug')==='1'?'button':'off');
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

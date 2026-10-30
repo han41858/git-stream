@@ -25,3 +25,8 @@ test('repository changes invalidate an old refresh completion',async()=>{
  const time=timer();let done!:(value:{error:string})=>void;const loop=new RefreshLoop(()=>new Promise(resolve=>{done=resolve;}),()=>true,time.clock);loop.configure('old',true,60000);const old=loop.refresh();await flush();loop.configure('new',false,60000);done({error:'Old error'});await old;assert.equal(loop.getSnapshot().error,'');assert.equal(loop.getSnapshot().lastSuccess,null);assert.equal(loop.getSnapshot().running,false);
 });
 test('the production clock initializes without a custom test clock',()=>{const loop=new RefreshLoop(async()=>({}));loop.configure('repo',false,60000);assert.equal(loop.getSnapshot().running,false);loop.stop();});
+
+test('manual and scheduled automatic refreshes provide distinct measurement origins',async()=>{
+ const time=timer(),origins:string[]=[];const loop=new RefreshLoop(async kind=>{origins.push(kind);return {};},()=>true,time.clock);
+ loop.configure('repo',true,60000);loop.loaded();await loop.refresh();await time.advance(60000);assert.deepEqual(origins,['manual','auto']);loop.stop();
+});
