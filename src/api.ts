@@ -3,7 +3,7 @@ import type {ClosedPull} from './recommendations';
 import {requestActivity} from './requestActivity';
 export type BranchActivity={ref:string;timestamp:string;activity_type:string};
 export class GitHubError extends Error {constructor(message:string,readonly status:number,readonly retryAt?:number){super(message);}}
-export type GitHubPage<T>={data:T;next:boolean;lastPage?:number;nextCursor?:string;etag?:string};
+export type GitHubPage<T>={data:T;next:boolean;lastPage?:number;nextCursor?:string;etag?:string;oauthScopes?:string[]};
 export async function github<T>(path:string,token:string,signal?:AbortSignal,cached?:GitHubPage<T>):Promise<GitHubPage<T>>{
  const finish=requestActivity.begin(signal);
  try{
@@ -30,7 +30,7 @@ export async function github<T>(path:string,token:string,signal?:AbortSignal,cac
  const page=last?Number(new URL(last[1],'https://api.github.com').searchParams.get('page')):NaN;
  const next=link.match(/<([^>]+)>;\s*rel="next"/);
  const cursor=next?new URL(next[1],'https://api.github.com').searchParams.get('after'):null;
- return {data:await r.json(),next:/rel="next"/.test(link),...(Number.isSafeInteger(page)&&page>0?{lastPage:page}:{}),...(cursor?{nextCursor:cursor}:{}),...(r.headers.get('ETag')?{etag:r.headers.get('ETag')!}:{})};
+ return {data:await r.json(),next:/rel="next"/.test(link),...(Number.isSafeInteger(page)&&page>0?{lastPage:page}:{}),...(cursor?{nextCursor:cursor}:{}),...(r.headers.get('ETag')?{etag:r.headers.get('ETag')!}:{}),...(r.headers.has('X-OAuth-Scopes')?{oauthScopes:r.headers.get('X-OAuth-Scopes')!.split(',').map(scope=>scope.trim()).filter(Boolean)}:{})};
  }finally{finish();}
 }
 export const commitsPage=(repo:string,branch:string,page:number,token:string,signal?:AbortSignal,since?:number)=>github<Commit[]>(`/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=100&page=${page}${since===undefined?'':`&since=${encodeURIComponent(new Date(since).toISOString())}`}`,token,signal);

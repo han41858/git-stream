@@ -121,6 +121,7 @@ export class CommitInfoStore {
   await Promise.all(tasks);
  }
  watch=(shas:string[])=>{const next=[...new Set(shas)].slice(0,24);if(next.join(',')!==this.visible.join(',')){this.visible=next;void this.ensureJobs();}};
+ clearSelection=()=>{if(this.selected){this.selected='';this.publish();}};
  inspect=(sha:string,force=false,withJobs=true)=>{
   const changed=this.selected!==sha;this.selected=sha;const pending=this.lookups.get(sha);if(pending){if(changed)this.publish();return pending;}
   if(!force&&this.checked.has(sha)){if(changed)this.publish();return withJobs?this.ensureJobs():Promise.resolve();}
