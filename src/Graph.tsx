@@ -1,5 +1,7 @@
+import {debug} from './debug';
 import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
-import {layout,ROW,type Commit,type Branch,type HistoryFrontier} from './model';
+import {ROW,type Commit,type Branch,type HistoryFrontier} from './model';
+import {measuredLayout} from './measuredLayout';
 import {branchTracks,visibleBranchLabels} from './branchLabels';
 import {emptyGraphColors,graphColors} from './graphColors';
 import {monthMarkers} from './monthMarkers';
@@ -19,7 +21,7 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
  const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width:800px)').matches);
  useEffect(()=>{const media=window.matchMedia('(max-width:800px)');const update=()=>setMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  const head=baseHead||branches.find(b=>b.name===branch)?.commit.sha;
- const data=useMemo(()=>layout(commits,prior.current,head),[commits,head]);
+ const data=useMemo(()=>measuredLayout(commits,prior.current,head),[commits,head]);
  useEffect(()=>{prior.current=data.lanes;},[data]);
  const tones=useMemo(()=>graphColors(commits,data.ordered,branches,branch,data.spine,priorColors.current),[commits,data,branches,branch]);
  useLayoutEffect(()=>{priorColors.current=tones;},[tones]);
@@ -88,6 +90,7 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
   captureFrontiers.current();
  },[positions,frontiers,pendingSources,padding,hasMore,onLoadMore,view.width,view.height,pageVisible]);
  useEffect(()=>{
+  const started=debug.startTime();let drawn=0,visible=0;
   const ctx=canvas.current!.getContext('2d')!;const dpr=window.devicePixelRatio||1;
   canvas.current!.width=width*dpr;canvas.current!.height=view.height*dpr;
   ctx.scale(dpr,dpr);ctx.clearRect(0,0,width,view.height);ctx.translate(0,-view.top);
@@ -121,6 +124,7 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
   }
   ctx.setLineDash([]);
   for(const c of ordered){const p=positions.get(c.sha)!;if(p.y<view.top-ROW||p.y>view.top+view.height+ROW)continue;
+   if(started!==undefined){drawn++;if(p.x>=left&&p.x<=left+view.width&&p.y>=view.top+Math.max(0,padding-20)&&p.y<=view.top+view.height-48)visible++;}
    ctx.globalAlpha=1;ctx.fillStyle=colors[(tones.nodes.get(c.sha)||0)%colors.length];ctx.beginPath();ctx.arc(p.x,p.y,c.sha===selected?7:4.5,0,Math.PI*2);ctx.fill();
    if(c.parents.length>1){ctx.strokeStyle=text;ctx.lineWidth=1;ctx.stroke();}
    const extra=info?.get(c.sha);
@@ -148,6 +152,7 @@ export function Graph({theme,commits,branches,branch,reverse,onSelect,selected,h
    hits.push({x,y,width:boxWidth,height:badgeHeight,names:label.names});
   }
   badgeHits.current=hits;
+  if(started!==undefined)debug.render(started,commits,{loaded:commits.length,visible,drawn,branches:branches.length,lanes:maxLane+1});
  },[theme,months,tones,tracks,padding,data,ordered,positions,branches,width,view,selected,mobile,branchWidth,messageX,messageWidth,reverse,info,displayNames]);
  function badgeAt(clientX:number,clientY:number){const el=container.current!,rect=el.getBoundingClientRect(),x=clientX-rect.left+el.scrollLeft,y=clientY-rect.top+el.scrollTop;return badgeHits.current.find(label=>x>=label.x&&x<=label.x+label.width&&y>=label.y&&y<=label.y+label.height);}
  function pick(clientX:number,clientY:number){
