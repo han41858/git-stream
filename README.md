@@ -35,12 +35,17 @@ The repository includes `vercel.json`. Use Node.js **24.x**, framework **Vite**,
 
 ### Git integration
 
-1. Commit and push the implementation to GitHub when ready. Files created only in this workspace are not available to Vercel's Git integration yet.
-2. In Vercel, choose **Add New → Project** and import `han41858/git-stream`.
-3. Set **Root Directory** to the repository root (leave it at the default). `/workspace/git-stream` is only this cloud machine's checkout path.
-4. Confirm the settings above and deploy. Use the Vercel preview deployment for the checks below before promoting to production.
+The existing Vercel project `git-stream` is linked to `han41858/git-stream`. Keep the repository root as Root Directory, the Framework Preset as **Vite**, automatic Git deployments enabled, and the Production Branch as **main**. The GitHub default branch remains **dev**.
 
-Alternatively, from the repository root on a machine authenticated with Vercel, run `npx vercel` for a preview. Run `npx vercel --prod` only when you intend to publish to production. CLI authentication and project linking are performed on that machine, not embedded in this project.
+- Feature branches (`feature/*` and existing `feat/*`) and `dev` receive Preview deployments through Vercel Git Integration.
+- Merging a PR into `main` starts the Production build and deployment. Main requires a PR; its source branch is not restricted to `dev`.
+- `.github/workflows/ci.yml` runs `npm ci`, `npm test`, and `npm run build` on PRs targeting `dev` or `main`, and on pushes to those branches. It reads Node.js from `.nvmrc`, caches npm downloads, and needs no additional Secrets.
+- The required GitHub Actions check is **Test and build**. The Ruleset definitions in `.github/rulesets/` retain the existing protections and add this check with an up-to-date branch requirement. These JSON files are definitions; changing them in Git does not update GitHub's active Rulesets automatically.
+- GitHub Actions performs validation; Vercel Git Integration performs deployment. Preview builds can run alongside CI. Main's PR checks gate merging; gating production-domain assignment on post-merge checks would require separate Vercel Deployment Checks.
+
+Use the Git deployment as the normal release path. A manual CLI deployment is an explicit exception: it can create another deployment for the same SHA, and uncommitted files can differ from that SHA. Do not add a Vercel CLI deployment step or Vercel credentials to the CI workflow.
+
+Verify public Production access at the project's assigned production domain using an anonymous browser session or an HTTP request without Vercel authentication. Check for HTTP 200, no login redirect, working JS/CSS, and a public repository graph. A protected generated deployment URL or an authenticated fetch does not establish anonymous access.
 
 ### Before publishing
 
