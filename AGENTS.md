@@ -1,4 +1,33 @@
-# Development instructions
+# AGENTS.md
 
-Use the existing checkout; cloud tasks are already isolated. Do not create a worktree unless requested.
-Read docs/specification.md. Use npm ci, npm test and npm run build. Keep the model, layout, API and Canvas renderer separate. Preserve parent SHA topology, partial-history boundaries, and memory-only token handling. Never log or persist tokens. Avoid unrelated dependencies and changes. Do not create PRs, push, merge or deploy without explicit instructions. Follow GitMoji style if asked to commit.
+모든 프로젝트에 적용하는 기본 지침입니다. 명시적인 사용자 요청과 프로젝트의 기존 지침을 우선합니다.
+
+## 작업 원칙
+
+- 작업 전에 요청의 목적과 범위, 관련 코드와 프로젝트의 구조·관례를 확인합니다.
+- 요청과 직접 관련 없는 리팩터링은 피합니다. 다만 작업과 관련된 중복은 변경 범위와 영향이 합리적인 경우 기존 공통 기능으로 통합하거나 공통화합니다.
+- 오류를 숨기거나 원인 확인 없이 임시로 우회하지 않습니다.
+- 새 의존성을 추가하기 전에 기존 기능으로 해결할 수 있는지 확인합니다.
+- 외부 API나 라이브러리의 동작이 불확실하면 사용 중인 버전의 공식 문서를 확인합니다.
+- 기존 변경 사항은 보존하고, 출처나 의도를 알 수 없는 변경은 임의로 되돌리지 않습니다.
+- 모호한 요구사항은 합리적으로 판단할 수 있는 부분부터 진행하고, 결과에 큰 영향을 주는 선택은 확인합니다.
+- 비밀 정보와 개인정보를 코드, 로그, 커밋, PR에 노출하지 않습니다.
+
+## 검증과 보고
+
+- 변경으로 영향을 받는 주요 동작과 회귀 가능성을 고려해 적절한 테스트와 검증을 수행합니다.
+- 변경 내용과 이유, 검증 결과, 확인하지 못한 사항을 구분해 간결하게 보고합니다. 사실과 추정은 구분합니다.
+
+## Git과 GitHub
+
+- 커밋, 원격 저장소 푸시, PR 생성·머지, 배포는 사용자가 명시적으로 요청한 경우에만 수행합니다. PR 생성 요청에는 필요한 브랜치 생성과 푸시가 포함됩니다.
+- 강제 푸시, 커밋 이력 재작성, 브랜치 삭제 등 기존 작업에 영향을 줄 수 있는 작업은 사전에 확인합니다.
+- 커밋 메시지의 첫 줄과 PR 제목은 `GitMoji 화면/기능/영역: 내용 요약` 형식으로 작성합니다. 변경 성격에 맞는 실제 이모지를 사용합니다. 프로젝트에 별도 형식이 있으면 따릅니다.
+
+```text
+✨ 로그인: 소셜 로그인 기능 추가
+🐛 장바구니: 수량 변경 시 합계 계산 오류 수정
+♻️ 인증: 토큰 갱신 로직 정리
+```
+
+- PR 본문은 프로젝트 템플릿을 따릅니다. 템플릿이 없다면 변경 배경과 내용, 검증 결과 및 확인하지 못한 사항을 간결하게 작성합니다.
