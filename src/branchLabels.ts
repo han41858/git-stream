@@ -1,0 +1,93 @@
+import {ROW,type Branch,type Commit} from './model';
+import type {GraphColors} from './graphColors';
+export type Point={x:number;y:number};
+export type BranchTrack={name:string;lane:number;color?:number;points:Point[];connections?:Point[][]};
+export type BranchLabel=Point&{names:string[];lane:number;color?:number;boxX?:number;boxY?:number};
+
+export function branchTracks(commits:Commit[],branches:Branch[],base:string,spine:Set<string>,positions:Map<string,Point>,reverse:boolean,colors?:GraphColors):BranchTrack[]{
+ const map=new Map(commits.map(c=>[c.sha,c]));const tracks:BranchTrack[]=[];
+ const incoming=new Map<string,Commit[]>();
+ for(const c of commits)for(const parent of c.parents.slice(1)){const list=incoming.get(parent.sha)||[];list.push(c);incoming.set(parent.sha,list);}
+ for(const ref of [...branches].sort((a,b)=>Number(b.name===base)-Number(a.name===base))){
+  const head=positions.get(ref.commit.sha);if(!head)continue;
+  const color=colors?.branches.get(ref.name)??colors?.nodes.get(ref.commit.sha);
+  const sharesBase=spine.has(ref.commit.sha);
+  const points:Point[]=[],connections:Point[][]=[];const seen=new Set<string>();let sha:string|undefined=ref.commit.sha;
+  while(sha&&!seen.has(sha)){
+   seen.add(sha);const point=positions.get(sha);if(!point)break;points.push(point);
+   const joined=ref.name!==base&&!sharesBase&&spine.has(sha)||color!==undefined&&colors?.nodes.get(sha)!==color;
+   if(joined)break;
+   for(const child of incoming.get(sha)||[]){const from=positions.get(child.sha);if(from)connections.push([from,point]);}
+   const parent:string|undefined=map.get(sha)?.parents[0]?.sha;
+   if(parent&&!positions.has(parent)){points.push({x:point.x,y:point.y+(reverse?-ROW/2:ROW/2)});break;}
+   sha=parent;
+  }
+  tracks.push({name:ref.name,lane:Math.max(0,Math.round((head.x-48)/34)),color,points,connections});
+ }
+ return tracks;
+}
+const clamp=(n:number)=>Math.max(0,Math.min(1,n));
+const horizontal=(t:number)=>3*t*t-2*t*t*t;
+const vertical=(t:number)=>1.5*t-1.5*t*t+t*t*t;
+function inverse(value:number,curve:(t:number)=>number){
+ if(value<=0)return 0;if(value>=1)return 1;
+ let low=0,high=1;for(let i=0;i<22;i++){const t=(low+high)/2;if(curve(t)<value)low=t;else high=t;}return (low+high)/2;
+}
+function anchor(points:Point[],target:number,top:number,bottom:number,left:number,right:number):Point|undefined{
+ if(points.length===1){const p=points[0];return p.x>=left&&p.x<=right&&p.y>=top&&p.y<=bottom?p:undefined;}
+ if(points.length<2)return;
+ const direction=points.at(-1)!.y>=points[0].y?1:-1;
+ const lower=direction>0?top:-bottom,upper=direction>0?bottom:-top;
+ // Skip segments above the viewport, even for very long branch histories.
+ let low=0,high=points.length-1;
+ while(low<high){const mid=(low+high)>>1;if(points[mid].y*direction<lower)low=mid+1;else high=mid;}
+ let best:Point|undefined,distance=Infinity;
+ for(let i=Math.max(0,low-1);i<points.length-1;i++){
+  const a=points[i],b=points[i+1];if(a.y*direction>upper)break;
+  let start=0,end=1,visible=true;
+  for(const [from,to,min,max,curve] of [[a.x,b.x,left,right,horizontal],[a.y,b.y,top,bottom,vertical]] as const){
+   if(from===to){if(from<min||from>max)visible=false;continue;}
+   const first=(min-from)/(to-from),last=(max-from)/(to-from);
+   const lo=Math.min(first,last),hi=Math.max(first,last);
+   if(hi<0||lo>1){visible=false;break;}
+   start=Math.max(start,inverse(clamp(lo),curve));end=Math.min(end,inverse(clamp(hi),curve));
+  }
+  if(!visible||start>end)continue;
+  const fraction=clamp((target-a.y)/(b.y-a.y)),requested=inverse(fraction,vertical);
+  const t=Math.max(start,Math.min(end,requested));
+  const actualY=t===requested&&fraction>0&&fraction<1?target:a.y+(b.y-a.y)*vertical(t);
+  const p={x:Math.max(left,Math.min(right,a.x+(b.x-a.x)*horizontal(t))),y:Math.max(top,Math.min(bottom,actualY))};
+  const delta=Math.abs(p.y-target);if(delta<distance){best=p;distance=delta;}if(delta<0.001)break;
+ }
+ return best;
+}
+export function visibleBranchLabels(tracks:BranchTrack[],top:number,bottom:number,left=-Infinity,right=Infinity,measure=(names:string[])=>Math.min(34,names.join(' · ').length)*6.5+16):BranchLabel[]{
+ if(top>bottom||left>right)return [];
+ const labels=new Map<string,BranchLabel>();
+ const rects=new Map<BranchLabel,{x:number;y:number;width:number}>();
+ const box=(point:Point,names:string[])=>({x:Math.max(left+8,Math.min(point.x+12,right-measure(names)-8)),y:Math.max(top+6,Math.min(point.y-11,bottom-22)),width:measure(names)});
+ for(const track of tracks){
+  let fallback:BranchLabel|undefined,placed=false;
+  for(let row=0;row<=Math.ceil((bottom-top)/26);row++){
+   const target=top+(track.lane%4)*24+row*26;
+   let point:Point|undefined,distance=Infinity;
+   for(const path of [track.points,...track.connections||[]]){
+    const candidate=anchor(path,target,top,bottom,left,right);if(!candidate)continue;
+    const delta=Math.abs(candidate.y-target);if(delta<distance){point=candidate;distance=delta;}
+   }
+   if(!point)break;
+   const key=`${Math.round(point.x)}:${Math.round(point.y)}`,group=labels.get(key);
+   if(group){
+    group.names.push(track.name);const rect=box(group,group.names);group.boxX=rect.x;group.boxY=rect.y;rects.set(group,rect);placed=true;break;
+   }
+   const label:BranchLabel={...point,names:[track.name],lane:track.lane,color:track.color},rect=box(point,label.names);
+   label.boxX=rect.x;label.boxY=rect.y;fallback??=label;
+   const overlaps=[...rects.values()].some(other=>rect.x<other.x+other.width+4&&rect.x+rect.width+4>other.x&&rect.y<other.y+24&&rect.y+24>other.y);
+   if(overlaps)continue;
+   labels.set(key,label);rects.set(label,rect);placed=true;break;
+  }
+  // Dense, very short paths still keep a label rather than silently dropping it.
+  if(!placed&&fallback){labels.set(`${track.name}:${fallback.x}:${fallback.y}`,fallback);rects.set(fallback,box(fallback,fallback.names));}
+ }
+ return [...labels.values()];
+}
