@@ -1,5 +1,68 @@
-// GitMoji shortcodes (gitmojis 3.15.0) rendered as emoji. Unknown codes stay as text.
-const shortcodes:Record<string,string>={
+// Shortcodes rendered as emoji. Unknown codes stay as text.
+// Frequently used GitHub shortcodes (names and emoji from gemoji 8.1.0, GitHub's emoji data).
+const common:Record<string,string>={
+ pencil:"📝",
+ shirt:"👕",
+ heavy_check_mark:"✔️",
+ x:"❌",
+ warning:"⚠️",
+ new:"🆕",
+ up:"🆙",
+ checkered_flag:"🏁",
+ link:"🔗",
+ gear:"⚙️",
+ hammer_and_wrench:"🛠️",
+ hourglass_flowing_sand:"⏳",
+ no_entry_sign:"🚫",
+ stop_sign:"🛑",
+ question:"❓",
+ exclamation:"❗",
+ information_source:"ℹ️",
+ books:"📚",
+ clipboard:"📋",
+ key:"🔑",
+ lock_with_ink_pen:"🔏",
+ arrows_counterclockwise:"🔄",
+ repeat:"🔁",
+ arrow_right:"➡️",
+ penguin:"🐧",
+ apple:"🍎",
+ robot:"🤖",
+ computer:"💻",
+ crab:"🦀",
+ beetle:"🪲",
+ ghost:"👻",
+ star:"⭐",
+ star2:"🌟",
+ "100":"💯",
+ wave:"👋",
+ "+1":"👍",
+ thumbsup:"👍",
+ "-1":"👎",
+ thumbsdown:"👎",
+ heart:"❤️",
+ eyes:"👀",
+ ok_hand:"👌",
+ clap:"👏",
+ pray:"🙏",
+ muscle:"💪",
+ raised_hands:"🙌",
+ thinking:"🤔",
+ smile:"😄",
+ smiley:"😃",
+ grinning:"😀",
+ joy:"😂",
+ sweat_smile:"😅",
+ wink:"😉",
+ cry:"😢",
+ sob:"😭",
+ partying_face:"🥳",
+ confetti_ball:"🎊",
+ facepalm:"🤦",
+ skull:"💀"
+};
+// GitMoji shortcodes (gitmojis 3.15.0). GitMoji wins when a name appears in both lists.
+const gitmojis:Record<string,string>={
  art:"🎨",
  zap:"⚡️",
  fire:"🔥",
@@ -75,4 +138,5 @@ const shortcodes:Record<string,string>={
  safety_vest:"🦺",
  airplane:"✈️"
 };
-export const emojify=(text:string)=>text.replace(/:([a-z0-9_]+):/g,(match,code:string)=>Object.hasOwn(shortcodes,code)?shortcodes[code]:match);
+const shortcodes:Record<string,string>={...common,...gitmojis};
+export const emojify=(text:string)=>text.replace(/:([a-z0-9_+-]+):/g,(match,code:string)=>Object.hasOwn(shortcodes,code)?shortcodes[code]:match);
