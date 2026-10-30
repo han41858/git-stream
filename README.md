@@ -37,6 +37,8 @@ The repository includes `vercel.json`. Use Node.js **24.x**, framework **Vite**,
 
 The existing Vercel project `git-stream` is linked to `han41858/git-stream`. Keep the repository root as Root Directory, the Framework Preset as **Vite**, automatic Git deployments enabled, and the Production Branch as **main**. The GitHub default branch remains **dev**.
 
+`vercel.json` explicitly enables Git deployments with `git.deploymentEnabled: true`. Keep Vercel's Preview Deployments enabled (`previewDeploymentsDisabled: false`). The separate `gitProviderOptions.createDeployments` option controls GitHub deployment records and is not the Vercel build switch.
+
 - Feature branches (`feature/*` and existing `feat/*`) and `dev` receive Preview deployments through Vercel Git Integration.
 - Merging a PR into `main` starts the Production build and deployment. Main requires a PR; its source branch is not restricted to `dev`.
 - `.github/workflows/ci.yml` runs `npm ci`, `npm test`, and `npm run build` on PRs targeting `dev` or `main`, and on pushes to those branches. It reads Node.js from `.nvmrc`, caches npm downloads, and needs no additional Secrets.
