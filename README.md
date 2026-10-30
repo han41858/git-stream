@@ -49,6 +49,18 @@ Use the Git deployment as the normal release path. A manual CLI deployment is an
 
 Verify public Production access at the project's assigned production domain using an anonymous browser session or an HTTP request without Vercel authentication. Check for HTTP 200, no login redirect, working JS/CSS, and a public repository graph. A protected generated deployment URL or an authenticated fetch does not establish anonymous access.
 
+### Production releases
+
+After a successful Vercel Production deployment, `.github/workflows/release.yml` creates a `rel-YYYYMMDDHHmmss` tag and GitHub Release on the **deployed commit**. The timestamp uses the verified success time in **Asia/Seoul**. Release notes contain the changes, commit, production URL, and deployment links. Preview and failed deployments do not publish releases.
+
+Vercel's GitHub deployment records must be enabled (`gitProviderOptions.createDeployments: enabled`) so GitHub receives `deployment_status` events. This records deployments; Vercel Git Integration still performs the builds. Repository-dispatch events can stay disabled. No additional Secrets or deployment CLI are needed; only the publishing job receives `contents: write`.
+
+The workflow verifies the persisted GitHub deployment and status from the Vercel bot, the team/project dashboard URL, and that the deployed SHA belongs to `main`. Automation code is checked out from the protected default branch, not from the event's deployed commit. Runs for the same SHA are serialized. Repeated events and redeployments reuse the commit's release; failed publication reuses its tag on retry. Existing tags are never moved. A timestamp collision with another commit uses the next free second, and delayed events do not replace a newer Latest release.
+
+To verify or recover a missed event, run **Production release** from the default branch with its **GitHub deployment ID**. Dry run is enabled by default and writes no tag or release; disable it only to publish the verified successful Production deployment. Preview IDs are safe to test and are skipped. Existing historical deployments are not backfilled automatically.
+
+The workflow and scripts must be on `main` before its next Production deployment. Keep the protected default branch (`dev`) up to date as well, since it supplies the trusted automation code. Publication uses the exact automation commit verified by the inspection job. The CI job also runs `node --test --test-isolation=none .github/scripts/*.test.mjs`.
+
 ### Before publishing
 
 ```sh

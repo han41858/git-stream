@@ -37,5 +37,8 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Test release automation
+        run: node --test --test-isolation=none .github/scripts/*.test.mjs
+
       - name: Build
         run: npm run build

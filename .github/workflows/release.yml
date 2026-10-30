@@ -1,0 +1,80 @@
+name: Production release
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      deployment_id:
+        description: GitHub deployment ID to verify or retry
+        required: true
+        type: string
+      dry_run:
+        description: Verify without creating a tag or release
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  inspect:
+    name: Verify production deployment
+    if: >-
+      github.repository == 'han41858/git-stream' &&
+      ((github.event_name == 'deployment_status' &&
+        github.event.deployment_status.state == 'success' &&
+        github.event.deployment.environment == 'Production' &&
+        github.event.sender.login == 'vercel[bot]') ||
+       (github.event_name == 'workflow_dispatch' &&
+        github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      eligible: ${{ steps.deployment.outputs.eligible }}
+      sha: ${{ steps.deployment.outputs.sha }}
+      automation_sha: ${{ steps.automation.outputs.commit }}
+    steps:
+      - name: Check out trusted automation
+        id: automation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Verify deployment through GitHub
+        id: deployment
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { inspectDeployment } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release.mjs`);
+            const result = await inspectDeployment({ github, context, core });
+            core.setOutput('eligible', String(result.eligible));
+            if (result.eligible) core.setOutput('sha', result.sha);
+
+  release:
+    name: Create production release
+    needs: inspect
+    if: needs.inspect.outputs.eligible == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      deployments: read
+    concurrency:
+      group: production-release-${{ needs.inspect.outputs.sha }}
+      cancel-in-progress: false
+    steps:
+      - name: Check out trusted automation
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.inspect.outputs.automation_sha }}
+          persist-credentials: false
+
+      - name: Create tag and GitHub Release
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { publishRelease } = await import(`${process.env.GITHUB_WORKSPACE}/.github/scripts/release.mjs`);
+            const result = await publishRelease({ github, context, core });
+            core.notice(JSON.stringify(result));
