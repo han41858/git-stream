@@ -11,5 +11,5 @@
 .direction-toggle{white-space:nowrap}.history-loading{display:inline-flex;align-items:center}.loading-spinner{display:inline-block;width:13px;height:13px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:loading-spin .75s linear infinite}@keyframes loading-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.loading-spinner{animation:none}}@media(max-width:800px){.view-controls{gap:6px}.view-controls>.direction-toggle{padding:7px 8px}.view-controls .base-prefix{display:none}}
 
 .view-controls>.direction-toggle{min-width:76px;padding:7px 10px;white-space:nowrap;font-size:12px;line-height:1.25}
-.token-button{display:inline-flex;align-items:center;gap:6px}.ticket-icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.token-button{display:inline-flex;align-items:center;gap:6px}.ticket-icon{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.ticket-icon.applied path:first-child{fill:currentColor}.ticket-icon.applied path:last-child{stroke:var(--surface)}
 @media(max-width:360px){.token-label{display:none}}
