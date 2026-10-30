@@ -635,3 +635,28 @@ test('PR ranking permission denial names the missing permission and keeps the gr
   assert.equal(h.getSnapshot().error,'');assert.equal(h.getSnapshot().commits.length,1);
  }finally{globalThis.fetch=original;}
 });
+
+test('refresh leaves unchanged commits and branch arrays intact and does not reread commit metadata',async()=>{
+ await using(url=>url.pathname.endsWith('/commits')?response([commit('m','root'),commit('root')]):undefined,async(h,requests)=>{await h.open('a/b');const before=h.getSnapshot(),count=histories(requests).length;await h.refresh();assert.equal(h.getSnapshot().commits,before.commits);assert.equal(h.getSnapshot().branches,before.branches);assert.equal(histories(requests).length,count);});
+});
+test('refresh deduplicates a new shared head and keeps known commit objects',async()=>{
+ let sha='m';await using(url=>{if(url.pathname.endsWith('/branches'))return response([ref('main',sha),ref('feature',sha)]);if(url.pathname.endsWith('/commits'))return response(url.searchParams.get('sha')==='new'?[commit('new','m'),commit('m','root'),commit('root')]:[commit('m','root'),commit('root')]);},async(h,requests)=>{await h.open('a/b');const old=h.getSnapshot().commits.find(c=>c.sha==='m');sha='new';await h.refresh();assert.equal(h.getSnapshot().baseHead,'new');assert.equal(h.getSnapshot().commits.find(c=>c.sha==='m'),old);assert.equal(histories(requests).filter(([sha])=>sha==='new').length,1);});
+});
+test('a partial or failed branch listing cannot delete refs; a later complete listing ends tracking',async()=>{
+ let refresh=false,fail=true;await using(url=>{if(url.pathname.endsWith('/branches')){if(!refresh)return response([ref('main','m'),ref('feature','root')]);if(url.searchParams.get('page')==='1')return response([ref('main','m')],true);return fail?new Response('',{status:500}):response([]);}if(url.pathname.endsWith('/commits'))return response([commit('m','root'),commit('root')]);},async(h,requests)=>{await h.open('a/b');const before=h.getSnapshot().commits;refresh=true;await h.refresh();assert.ok(h.getSnapshot().branches.some(b=>b.name==='feature'));assert.equal(h.getSnapshot().commits,before);fail=false;await h.refresh();assert.ok(!h.getSnapshot().branches.some(b=>b.name==='feature'));const count=histories(requests).length;await h.refresh();assert.equal(histories(requests).length,count);assert.ok(h.getSnapshot().commits.some(c=>c.sha==='root'));});
+});
+test('force push reevaluates reachability and preserves shared commits used by another ref',async()=>{
+ let sha='m';await using(url=>{if(url.pathname.endsWith('/branches'))return response([ref('main',sha),ref('shared','root')]);if(url.pathname.endsWith('/commits'))return response(url.searchParams.get('sha')==='replacement'?[commit('replacement','root'),commit('root')]:[commit('m','root'),commit('root')]);},async h=>{await h.open('a/b');sha='replacement';await h.refresh();assert.deepEqual(new Set(h.getSnapshot().commits.map(c=>c.sha)),new Set(['replacement','root']));assert.equal(h.getSnapshot().baseHead,'replacement');});
+});
+test('an actually new branch after a complete baseline is fetched incrementally',async()=>{
+ let added=false;await using(url=>{if(url.pathname.endsWith('/branches'))return response([ref('main','m'),...(added?[ref('new-feature','n')]:[])]);if(url.pathname.endsWith('/commits'))return response(url.searchParams.get('sha')==='n'?[commit('n','root')]:[commit('m','root'),commit('root')]);},async h=>{await h.open('a/b');await h.refresh();added=true;await h.refresh();assert.ok(h.getSnapshot().commits.some(c=>c.sha==='n'));assert.ok(h.getSnapshot().branches.some(b=>b.name==='new-feature'));});
+});
+test('a new branch is detected on the first poll when the initial branch catalog was complete',async()=>{
+ let created=false;await using(url=>{if(url.pathname.endsWith('/branches'))return response([ref('main','m'),...(created?[ref('fresh','n')]:[])]);if(url.pathname.endsWith('/commits'))return response(url.searchParams.get('sha')==='n'?[commit('n','m')]:[commit('m')]);},async h=>{await h.open('a/b');created=true;await h.refresh();assert.ok(h.getSnapshot().commits.some(c=>c.sha==='n'));});
+});
+test('failed changed-head batches leave both the displayed graph and references untouched',async()=>{
+ let changed=false;await using(url=>{if(url.pathname.endsWith('/branches'))return response([ref('main',changed?'new':'m'),ref('side',changed?'broken':'m')]);if(url.pathname.endsWith('/commits')){const sha=url.searchParams.get('sha');return sha==='broken'?new Response('',{status:500}):response(sha==='new'?[commit('new','m')]:[commit('m')]);}},async h=>{await h.open('a/b');const old=h.getSnapshot();changed=true;await h.refresh();assert.equal(h.getSnapshot().commits,old.commits);assert.equal(h.getSnapshot().branches,old.branches);assert.match(h.getSnapshot().refreshError,/500/);});
+});
+test('a deleted selected branch stops HEAD fetching and retains cached history with an explicit notice',async()=>{
+ let deleted=false;await using(url=>{if(url.pathname.endsWith('/branches'))return response(deleted?[ref('other','root')]:[ref('main','m'),ref('other','root')]);if(url.pathname.endsWith('/commits'))return response([commit('m','root'),commit('root')]);},async(h,requests)=>{await h.open('a/b');deleted=true;const count=histories(requests).length;await h.refresh();await h.refresh();assert.equal(histories(requests).length,count);assert.equal(h.getSnapshot().baseHead,'m');assert.ok(!h.getSnapshot().branches.some(ref=>ref.name==='main'));assert.match(h.getSnapshot().refreshNotice,/deleted/);assert.ok(h.getSnapshot().commits.some(c=>c.sha==='m'));});
+});

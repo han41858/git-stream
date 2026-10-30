@@ -1,20 +1,27 @@
 import {GitHubError,branchByName,branchesPage,closedPullsPage,commitsPage,github,branchActivityPage} from './api';
 import {preferredBranch,PullCounts,RECOMMENDATION_LIMIT} from './recommendations';
 import {RequestPool} from './RequestPool';
+import {GitHubReader} from './GitHubReader';
 import {parseRepo,commitTime, type Branch, type Commit, type HistoryFrontier} from './model';
 
 type Meta = {default_branch:string; description:string|null; stargazers_count:number};
-export type HistorySnapshot = {repo:string; meta:Meta|null; base:string; reverse:boolean; discoveryError:string; discoveryRetryAt:number|null; commits:Commit[]; branches:Branch[]; busy:boolean; error:string; retryAt:number|null; more:boolean; moreBranches:boolean; frontiers:HistoryFrontier[]; pendingSources:string[]; ranking:{counts:Record<string,number>; scanned:number; busy:boolean; complete:boolean; error:string; retryAt:number|null}; branchSearch:{busy:boolean; error:string}};
-const empty = ():HistorySnapshot => ({repo:'',meta:null,base:'',reverse:false,discoveryError:'',discoveryRetryAt:null,commits:[],branches:[],busy:false,error:'',retryAt:null,more:false,moreBranches:false,frontiers:[],pendingSources:[],ranking:{counts:{},scanned:0,busy:false,complete:false,error:'',retryAt:null},branchSearch:{busy:false,error:''}});
+export type HistorySnapshot = {repo:string; refreshVersion:number; baseHead:string; refreshError:string; refreshNotice:string; meta:Meta|null; base:string; reverse:boolean; discoveryError:string; discoveryRetryAt:number|null; commits:Commit[]; branches:Branch[]; busy:boolean; error:string; retryAt:number|null; more:boolean; moreBranches:boolean; frontiers:HistoryFrontier[]; pendingSources:string[]; ranking:{counts:Record<string,number>; scanned:number; busy:boolean; complete:boolean; error:string; retryAt:number|null}; branchSearch:{busy:boolean; error:string}};
+const empty = ():HistorySnapshot => ({repo:'',refreshVersion:0,baseHead:'',refreshError:'',refreshNotice:'',meta:null,base:'',reverse:false,discoveryError:'',discoveryRetryAt:null,commits:[],branches:[],busy:false,error:'',retryAt:null,more:false,moreBranches:false,frontiers:[],pendingSources:[],ranking:{counts:{},scanned:0,busy:false,complete:false,error:'',retryAt:null},branchSearch:{busy:false,error:''}});
 
 // Ref names never drive history loading. Repository activity supplies independent
 // live heads that cannot be discovered by following the selected head's parents.
 export class History {
  private snapshot=empty();
+ private refreshReader:GitHubReader|null=null;
+ private branchScan:{page:number;refs:Map<string,Branch>}|null=null;
+ private catalogComplete=false;
+ private deletedRefs=new Set<string>();
+ private refreshing:Promise<{error?:string;retryAt?:number}>|null=null;
  private listeners=new Set<()=>void>();
  private controllers=new Set<AbortController>();
  private generation=0;
  private commitPool=new RequestPool();
+ private commitPages=new Map<string,Awaited<ReturnType<typeof commitsPage>>>();
  private commitRequests=new Map<string,ReturnType<typeof commitsPage>>();
  private sourceTasks=new Map<string,Promise<void>>();
  private failedSources=new Set<string>();
@@ -64,18 +71,20 @@ export class History {
   }
   finally {if(this.controllers.delete(controller)&&!controller.signal.aborted)this.publish({busy:this.controllers.size>0});}
  }
- cancel=()=>{this.generation++;for(const controller of this.controllers)controller.abort();this.rankingController?.abort();this.searchController?.abort();};
+ cancel=()=>{this.refreshReader?.cancel();this.generation++;for(const controller of this.controllers)controller.abort();this.rankingController?.abort();this.searchController?.abort();};
  private resetTraversal(){
   for(const controller of this.controllers)controller.abort();this.controllers.clear();this.generation++;
-  this.commitPool=new RequestPool();this.commitRequests.clear();this.sourceTasks.clear();this.failedSources.clear();this.discoveryTask=null;
+  this.refreshReader?.cancel();this.refreshReader=null;this.branchScan=null;this.catalogComplete=!this.refsNext;this.refreshing=null;
+  this.commitPool=new RequestPool();this.commitPages.clear();this.commitRequests.clear();this.sourceTasks.clear();this.failedSources.clear();this.discoveryTask=null;
   this.commits.clear();this.queried.clear();
   this.admitted.clear();this.sideCommits.clear();this.retryRefs=false;this.started=false;this.historyHead='';this.nextPage=0;this.forwardWindow=[];
  }
  private fetchCommits(ref:string,page:number,signal:AbortSignal,since?:number){
   const key=`${ref}:${page}:${since??''}`;
+  const cached=this.commitPages.get(key);if(cached)return Promise.resolve(cached);
   const existing=this.commitRequests.get(key);if(existing)return existing;
   const repo=this.snapshot.repo,token=this.token;
-  const request=this.commitPool.run(signal,()=>commitsPage(repo,ref,page,token,signal,since)).finally(()=>{
+  const request=this.commitPool.run(signal,()=>commitsPage(repo,ref,page,token,signal,since)).then(result=>{signal.throwIfAborted();if(/^[a-f0-9]{40}$/i.test(ref))this.commitPages.set(key,result);return result;}).finally(()=>{
    if(this.commitRequests.get(key)===request)this.commitRequests.delete(key);
   });
   this.commitRequests.set(key,request);return request;
@@ -83,11 +92,11 @@ export class History {
  clear=()=>{
   this.cancel();this.resetTraversal();this.rankingController=null;this.searchController=null;this.token='';
   this.pulls=new PullCounts();this.pullPage=0;this.pullsNext=true;this.checkedRefs.clear();
-  this.activity.clear();this.activityCursor=undefined;this.activityRequested.clear();this.activityNext=true;this.oldestActivity=Infinity;
+  this.deletedRefs.clear();this.activity.clear();this.activityCursor=undefined;this.activityRequested.clear();this.activityNext=true;this.oldestActivity=Infinity;
   this.refsPage=0;this.refsNext=false;this.snapshot=empty();this.publish();
  };
- private integrate(data:Commit[]){
-  for(const commit of data)this.commits.set(commit.sha,commit);
+ private integrate(data:Commit[],patch:Partial<HistorySnapshot>={}){
+  let changed=this.snapshot.commits.length!==this.commits.size||this.snapshot.commits.some(commit=>!this.commits.has(commit.sha));for(const commit of data)if(!this.commits.has(commit.sha)){this.commits.set(commit.sha,commit);changed=true;}
   const frontiers:HistoryFrontier[]=[];
   if(this.snapshot.reverse){
    if(this.nextPage>0){
@@ -103,7 +112,7 @@ export class History {
   }
   const range=this.historyRange();
   if(range&&this.activityNeeded(range))frontiers.push({sha:range.anchor,sources:['activity']});
-  this.publish({commits:[...this.commits.values()],frontiers});
+  this.publish({...patch,...(changed?{commits:[...this.commits.values()]}:{}),frontiers});
  }
  private async start(signal:AbortSignal){
   const first=await this.fetchCommits(this.snapshot.base,1,signal);this.current(signal);
@@ -115,6 +124,7 @@ export class History {
    if(last>1){result=await this.fetchCommits(this.historyHead,last,signal);this.current(signal);}
    this.nextPage=last-1;this.forwardWindow=result.data;
   }
+  this.publish({baseHead:this.historyHead});
   if(this.historyHead)this.addRefs([{name:this.snapshot.base,commit:{sha:this.historyHead}}]);
   this.started=true;this.integrate(result.data);await this.discoverActive(signal);
  }
@@ -132,7 +142,7 @@ export class History {
  }
  private activityNeeded(range:{min:number;max:number}){
   if(this.snapshot.discoveryError||this.snapshot.reverse&&this.nextPage>0)return false;
-  if([...this.activity].some(([name,time])=>name!==this.snapshot.base&&(this.admitted.get(name)===undefined||range.min<this.admitted.get(name)!)&&time>=range.min&&(!this.snapshot.reverse||time<=range.max)))return true;
+  if([...this.activity].some(([name,time])=>name!==this.snapshot.base&&!this.deletedRefs.has(name)&&(this.admitted.get(name)===undefined||range.min<this.admitted.get(name)!)&&time>=range.min&&(!this.snapshot.reverse||time<=range.max)))return true;
   return this.activityNext&&this.oldestActivity>=range.min;
  }
  private async discoverActive(signal:AbortSignal){
@@ -157,7 +167,7 @@ export class History {
      this.activity.set(name,Math.max(this.activity.get(name)??-Infinity,time));
     }
    }
-   const candidates=[...this.activity].filter(([name,time])=>name!==this.snapshot.base&&(this.admitted.get(name)===undefined||range.min<this.admitted.get(name)!)&&time>=range.min&&(!this.snapshot.reverse||time<=range.max)).sort((a,b)=>b[1]-a[1]).slice(0,3);
+   const candidates=[...this.activity].filter(([name,time])=>name!==this.snapshot.base&&!this.deletedRefs.has(name)&&(this.admitted.get(name)===undefined||range.min<this.admitted.get(name)!)&&time>=range.min&&(!this.snapshot.reverse||time<=range.max)).sort((a,b)=>b[1]-a[1]).slice(0,3);
    const results=await Promise.allSettled(candidates.map(async([name])=>{
     const ref=this.snapshot.branches.find(branch=>branch.name===name)??await branchByName(this.snapshot.repo,name,this.token,signal);this.current(signal);
     if(ref){
@@ -188,14 +198,67 @@ export class History {
  };
  private addRefs(refs:Branch[]){
   const branches=new Map(this.snapshot.branches.map(b=>[b.name,b]));
-  for(const ref of refs)branches.set(ref.name,ref);
-  this.publish({branches:[...branches.values()]});
+  let changed=false;for(const ref of refs)if(branches.get(ref.name)?.commit.sha!==ref.commit.sha){branches.set(ref.name,ref);changed=true;}
+  if(changed)this.publish({branches:[...branches.values()]});
  }
  private async fetchRefs(signal:AbortSignal) {
   const result=await branchesPage(this.snapshot.repo,this.refsPage+1,this.token,signal);
-  this.current(signal);this.refsPage++;this.refsNext=result.next;
+  this.current(signal);this.refsPage++;this.refsNext=result.next;if(!result.next)this.catalogComplete=true;
   // Ref pagination enriches labels/picker choices without fetching any commits.
   this.addRefs(result.data.filter(ref=>ref.name!==this.snapshot.base||!this.started));
+ }
+ refresh=():Promise<{error?:string;retryAt?:number}>=>{
+  if(this.refreshing)return this.refreshing;
+  if(!this.started||!this.snapshot.meta||this.snapshot.busy)return Promise.resolve({});
+  if(this.snapshot.retryAt&&this.snapshot.retryAt>Date.now())return Promise.resolve({error:this.snapshot.error,retryAt:this.snapshot.retryAt});
+  const generation=this.generation;
+  const task=this.refreshCurrent().finally(()=>{if(this.refreshing===task)this.refreshing=null;});this.refreshing=task;return task.then(result=>generation===this.generation?result:{});
+ };
+ private async refreshCurrent():Promise<{error?:string;retryAt?:number}>{
+  const reader=this.refreshReader??(this.refreshReader=new GitHubReader(this.token));
+  const signal=reader.controller.signal,repo=this.snapshot.repo;
+  try{
+   const meta=(await reader.get<Meta>(`/repos/${repo}`)).data;signal.throwIfAborted();
+   const scan=this.branchScan??{page:1,refs:new Map<string,Branch>()};this.branchScan=scan;
+   let complete=false;
+   for(let count=0;count<3;count++){
+    const result=await reader.get<Branch[]>(`/repos/${repo}/branches?per_page=100&page=${scan.page}`);signal.throwIfAborted();
+    if(!Array.isArray(result.data))throw new Error('Branch refresh returned invalid data.');
+    for(const ref of result.data)scan.refs.set(ref.name,ref);scan.page++;
+    if(!result.next){complete=true;break;}
+   }
+   if(!complete){this.publish({refreshError:'',refreshNotice:'Branch list is partial; deletion detection waits for all pages.'});return {};}
+   const previous=new Map(this.snapshot.branches.map(ref=>[ref.name,ref]));
+   const pinned=this.snapshot.reverse&&this.nextPage>0;
+   const changed=[...scan.refs.values()].filter(ref=>(ref.name===this.snapshot.base||previous.has(ref.name)||this.catalogComplete)&&previous.get(ref.name)?.commit.sha!==ref.commit.sha);
+   const results=await Promise.allSettled(changed.filter(ref=>!(pinned&&ref.name===this.snapshot.base)).map(async ref=>{
+    if(this.commits.has(ref.commit.sha))return [] as Commit[];
+    const since=ref.name===this.snapshot.base?undefined:this.historyRange()?.min;
+    const result=await this.fetchCommits(ref.commit.sha,1,signal,since);signal.throwIfAborted();
+    const data=result.data.filter(commit=>since===undefined||!Number.isFinite(commitTime(commit))||commitTime(commit)>=since);
+    return data;
+   }));
+   signal.throwIfAborted();const failed=results.find(result=>result.status==='rejected');if(failed?.status==='rejected')throw failed.reason;
+   for(const result of results)if(result.status==='fulfilled')for(const commit of result.value)if(!this.commits.has(commit.sha))this.commits.set(commit.sha,commit);
+   const refs=[...scan.refs.values()];
+   const base=scan.refs.get(this.snapshot.base);
+   if(base&&!pinned)this.historyHead=base.commit.sha;
+   const refsChanged=refs.length!==previous.size||refs.some(ref=>previous.get(ref.name)?.commit.sha!==ref.commit.sha);
+   const patch:Partial<HistorySnapshot>={refreshVersion:this.snapshot.refreshVersion+1,meta:meta.default_branch!==this.snapshot.meta?.default_branch?meta:this.snapshot.meta,baseHead:this.historyHead,...(refsChanged?{branches:refs}:{}),refreshError:'',refreshNotice:base?'':'Selected branch was deleted; showing cached history.'};
+   for(const name of previous.keys())if(!scan.refs.has(name)){this.deletedRefs.add(name);this.activity.delete(name);this.admitted.set(name,-Infinity);}
+   for(const name of scan.refs.keys())if(this.deletedRefs.delete(name))this.admitted.delete(name);
+   this.catalogComplete=true;this.branchScan=null;
+   // Only remove unreachable cached nodes when every branch and parent is known.
+   const reachable=new Set<string>(),todo=refs.map(ref=>ref.commit.sha);let partial=false;
+   while(todo.length){const sha=todo.pop()!;if(reachable.has(sha))continue;reachable.add(sha);const commit=this.commits.get(sha);if(!commit){partial=true;continue;}for(const parent of commit.parents)todo.push(parent.sha);}
+   if(!partial&&base&&!pinned){for(const sha of this.commits.keys())if(!reachable.has(sha))this.commits.delete(sha);}
+   else if(base)patch.refreshNotice='Some branch ancestry is not loaded; cached commits are retained.';
+   this.integrate([],patch);return {};
+  }catch(error){
+   if(signal.aborted)return {};
+   const message=(error as Error).message,retryAt=error instanceof GitHubError?error.retryAt:undefined;
+   this.publish({refreshError:message});return {error:message,retryAt};
+  }
  }
  open=async(value:string,token=this.token)=>{
   let repo:string;
@@ -215,12 +278,12 @@ export class History {
  };
  chooseBase=async(name:string)=>{
   if(name===this.snapshot.base)return;
-  this.resetTraversal();this.publish({base:name,commits:[],frontiers:[],pendingSources:[],busy:false,error:'',retryAt:null,discoveryError:'',discoveryRetryAt:null});
+  this.resetTraversal();this.publish({base:name,baseHead:'',refreshError:'',refreshNotice:'',commits:[],frontiers:[],pendingSources:[],busy:false,error:'',retryAt:null,discoveryError:'',discoveryRetryAt:null});
   await this.run(signal=>this.start(signal));
  };
  setDirection=async(reverse:boolean)=>{
   if(reverse===this.snapshot.reverse)return;
-  this.resetTraversal();this.publish({reverse,commits:[],frontiers:[],pendingSources:[],busy:false,error:'',retryAt:null,discoveryError:'',discoveryRetryAt:null});
+  this.resetTraversal();this.publish({reverse,baseHead:'',refreshError:'',refreshNotice:'',commits:[],frontiers:[],pendingSources:[],busy:false,error:'',retryAt:null,discoveryError:'',discoveryRetryAt:null});
   if(this.snapshot.meta)await this.run(signal=>this.start(signal));
  };
  private async checkRankedRefs(signal:AbortSignal){

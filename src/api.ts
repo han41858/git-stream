@@ -3,10 +3,12 @@ import type {ClosedPull} from './recommendations';
 import {requestActivity} from './requestActivity';
 export type BranchActivity={ref:string;timestamp:string;activity_type:string};
 export class GitHubError extends Error {constructor(message:string,readonly status:number,readonly retryAt?:number){super(message);}}
-export async function github<T>(path:string,token:string,signal?:AbortSignal):Promise<{data:T;next:boolean;lastPage?:number;nextCursor?:string}>{
+export type GitHubPage<T>={data:T;next:boolean;lastPage?:number;nextCursor?:string;etag?:string};
+export async function github<T>(path:string,token:string,signal?:AbortSignal,cached?:GitHubPage<T>):Promise<GitHubPage<T>>{
  const finish=requestActivity.begin(signal);
  try{
- let r:Response;try{r=await fetch(`https://api.github.com${path}`,{signal,headers:{Accept:'application/vnd.github+json',...(token?{Authorization:`Bearer ${token}`}:{})}});}catch(e){if(signal?.aborted)throw e;throw new Error('Could not reach GitHub. Check your connection and retry.');}
+ let r:Response;try{r=await fetch(`https://api.github.com${path}`,{signal,headers:{Accept:'application/vnd.github+json',...(token?{Authorization:`Bearer ${token}`} :{}),...(cached?.etag?{'If-None-Match':cached.etag}:{})}});}catch(e){if(signal?.aborted)throw e;throw new Error('Could not reach GitHub. Check your connection and retry.');}
+ if(r.status===304&&cached)return cached;
  if(!r.ok){
   if(r.status===403||r.status===429){
    const remaining=r.headers.get('X-RateLimit-Remaining'),retry=r.headers.get('Retry-After');
@@ -28,7 +30,7 @@ export async function github<T>(path:string,token:string,signal?:AbortSignal):Pr
  const page=last?Number(new URL(last[1],'https://api.github.com').searchParams.get('page')):NaN;
  const next=link.match(/<([^>]+)>;\s*rel="next"/);
  const cursor=next?new URL(next[1],'https://api.github.com').searchParams.get('after'):null;
- return {data:await r.json(),next:/rel="next"/.test(link),...(Number.isSafeInteger(page)&&page>0?{lastPage:page}:{}),...(cursor?{nextCursor:cursor}:{})};
+ return {data:await r.json(),next:/rel="next"/.test(link),...(Number.isSafeInteger(page)&&page>0?{lastPage:page}:{}),...(cursor?{nextCursor:cursor}:{}),...(r.headers.get('ETag')?{etag:r.headers.get('ETag')!}:{})};
  }finally{finish();}
 }
 export const commitsPage=(repo:string,branch:string,page:number,token:string,signal?:AbortSignal,since?:number)=>github<Commit[]>(`/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=100&page=${page}${since===undefined?'':`&since=${encodeURIComponent(new Date(since).toISOString())}`}`,token,signal);
