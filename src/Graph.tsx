@@ -2,6 +2,7 @@ import {useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {layout,ROW,type Commit,type Branch,type HistoryFrontier} from './model';
 import {branchTracks,visibleBranchLabels} from './branchLabels';
 import {emptyGraphColors,graphColors} from './graphColors';
+import {emojify} from './emoji';
 const colors=['#70e0b4','#8f9fff','#e9b575','#d493dc','#74c4ed','#df8895'];
 const labelText=(names:string[])=>{const text=names.join(' · ');return text.length>34?`${text.slice(0,31)}…`:text;};
 type Props={commits:Commit[];branches:Branch[];branch:string;reverse:boolean;onSelect:(c:Commit)=>void;selected:string;hasMore:boolean;loading:boolean;onLoadMore:(sources?:string[])=>void;frontiers:HistoryFrontier[];topInset:number;hasUnloadedBranches:boolean;onDiscover:()=>void};
@@ -62,7 +63,7 @@ export function Graph({commits,branches,branch,reverse,onSelect,selected,hasMore
    ctx.globalAlpha=1;ctx.fillStyle=colors[(tones.nodes.get(c.sha)||0)%colors.length];ctx.beginPath();ctx.arc(p.x,p.y,c.sha===selected?7:4.5,0,Math.PI*2);ctx.fill();
    if(c.parents.length>1){ctx.strokeStyle=text;ctx.lineWidth=1;ctx.stroke();}
    const tx=140+maxLane*34;ctx.fillStyle=text;
-   if(!mobile){ctx.font='13px system-ui';ctx.fillText(c.commit.message.split('\n')[0].slice(0,85),tx,p.y-2);}
+   if(!mobile){ctx.font='13px system-ui';ctx.fillText(emojify(c.commit.message.split('\n')[0]).slice(0,85),tx,p.y-2);}
    if(!mobile){ctx.globalAlpha=0.5;ctx.font='11px monospace';ctx.fillText(`${c.sha.slice(0,7)}  ${c.commit.author?.name||'Unknown author'}`,tx,p.y+17);}
   }
   ctx.globalAlpha=1;ctx.font='11px system-ui';
@@ -81,5 +82,5 @@ export function Graph({commits,branches,branch,reverse,onSelect,selected,hasMore
   const p=positions.get(c.sha)!;
   return Math.abs(y-p.y)<=22&&(Math.abs(x-p.x)<=22||(!mobile&&x>=140+maxLane*34))?c:undefined;
  }
- return <div className="graph-scroll" ref={container} tabIndex={0} aria-label="Commit graph. Scroll to load more history." onScroll={e=>{const top=e.currentTarget.scrollTop;setView(v=>({...v,top}));}}><div style={{height,width,position:'relative'}}><canvas aria-label="Commit history graph. Tap a node to inspect it." ref={canvas} style={{position:'sticky',top:0,width,height:view.height,display:'block'}} onClick={e=>{const c=pick(e.clientX,e.clientY);if(c)onSelect(c);}} onMouseMove={e=>{const c=pick(e.clientX,e.clientY);e.currentTarget.title=c?`${c.sha.slice(0,7)} · ${c.commit.message.split('\n')[0]}`:'';}}/></div></div>;
+ return <div className="graph-scroll" ref={container} tabIndex={0} aria-label="Commit graph. Scroll to load more history." onScroll={e=>{const top=e.currentTarget.scrollTop;setView(v=>({...v,top}));}}><div style={{height,width,position:'relative'}}><canvas aria-label="Commit history graph. Tap a node to inspect it." ref={canvas} style={{position:'sticky',top:0,width,height:view.height,display:'block'}} onClick={e=>{const c=pick(e.clientX,e.clientY);if(c)onSelect(c);}} onMouseMove={e=>{const c=pick(e.clientX,e.clientY);e.currentTarget.title=c?`${c.sha.slice(0,7)} · ${emojify(c.commit.message.split('\n')[0])}`:'';}}/></div></div>;
 }
