@@ -13,6 +13,15 @@
     { "type": "deletion" },
     { "type": "non_fast_forward" },
     {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          { "context": "Test and build", "integration_id": 15368 }
+        ]
+      }
+    },
+    {
       "type": "pull_request",
       "parameters": {
         "dismiss_stale_reviews_on_push": false,
