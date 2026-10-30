@@ -4,7 +4,7 @@ export type Point={x:number;y:number};
 export type BranchTrack={name:string;lane:number;color?:number;points:Point[];connections?:Point[][]};
 export type BranchLabel=Point&{names:string[];lane:number;color?:number;boxX?:number;boxY?:number};
 
-export function branchTracks(commits:Commit[],branches:Branch[],base:string,spine:Set<string>,positions:Map<string,Point>,reverse:boolean,colors?:GraphColors):BranchTrack[]{
+export function branchTracks(commits:Commit[],branches:Branch[],base:string,spine:Set<string>,positions:Map<string,Point>,reverse:boolean,colors?:GraphColors,lanes?:ReadonlyMap<string,number>):BranchTrack[]{
  const map=new Map(commits.map(c=>[c.sha,c]));const tracks:BranchTrack[]=[];
  const incoming=new Map<string,Commit[]>();
  for(const c of commits)for(const parent of c.parents.slice(1)){const list=incoming.get(parent.sha)||[];list.push(c);incoming.set(parent.sha,list);}
@@ -22,7 +22,7 @@ export function branchTracks(commits:Commit[],branches:Branch[],base:string,spin
    if(parent&&!positions.has(parent)){points.push({x:point.x,y:point.y+(reverse?-ROW/2:ROW/2)});break;}
    sha=parent;
   }
-  tracks.push({name:ref.name,lane:Math.max(0,Math.round((head.x-48)/34)),color,points,connections});
+  tracks.push({name:ref.name,lane:lanes?.get(ref.commit.sha)??Math.max(0,Math.round((head.x-48)/34)),color,points,connections});
  }
  return tracks;
 }
@@ -61,15 +61,15 @@ function anchor(points:Point[],target:number,top:number,bottom:number,left:numbe
  }
  return best;
 }
-export function visibleBranchLabels(tracks:BranchTrack[],top:number,bottom:number,left=-Infinity,right=Infinity,measure=(names:string[])=>Math.min(34,names.join(' · ').length)*6.5+16):BranchLabel[]{
+export function visibleBranchLabels(tracks:BranchTrack[],top:number,bottom:number,left=-Infinity,right=Infinity,measure=(names:string[])=>Math.min(34,names.join(' · ').length)*6.5+16,height=22,gap=2):BranchLabel[]{
  if(top>bottom||left>right)return [];
  const labels=new Map<string,BranchLabel>();
  const rects=new Map<BranchLabel,{x:number;y:number;width:number}>();
- const box=(point:Point,names:string[])=>({x:Math.max(left+8,Math.min(point.x+12,right-measure(names)-8)),y:Math.max(top+6,Math.min(point.y-11,bottom-22)),width:measure(names)});
+ const box=(point:Point,names:string[])=>({x:Math.max(left+8,Math.min(point.x+12,right-measure(names)-8)),y:Math.max(top+6,Math.min(point.y-height/2,bottom-height)),width:measure(names)});
  for(const track of tracks){
   let fallback:BranchLabel|undefined,placed=false;
-  for(let row=0;row<=Math.ceil((bottom-top)/26);row++){
-   const target=top+(track.lane%4)*24+row*26;
+  for(let row=0;row<=Math.ceil((bottom-top)/(height+gap+2));row++){
+   const target=top+(track.lane%4)*(height+gap)+row*(height+gap+2);
    let point:Point|undefined,distance=Infinity;
    for(const path of [track.points,...track.connections||[]]){
     const candidate=anchor(path,target,top,bottom,left,right);if(!candidate)continue;
@@ -82,7 +82,7 @@ export function visibleBranchLabels(tracks:BranchTrack[],top:number,bottom:numbe
    }
    const label:BranchLabel={...point,names:[track.name],lane:track.lane,color:track.color},rect=box(point,label.names);
    label.boxX=rect.x;label.boxY=rect.y;fallback??=label;
-   const overlaps=[...rects.values()].some(other=>rect.x<other.x+other.width+4&&rect.x+rect.width+4>other.x&&rect.y<other.y+24&&rect.y+24>other.y);
+   const overlaps=[...rects.values()].some(other=>rect.x<other.x+other.width+4&&rect.x+rect.width+4>other.x&&rect.y<other.y+height+gap&&rect.y+height+gap>other.y);
    if(overlaps)continue;
    labels.set(key,label);rects.set(label,rect);placed=true;break;
   }
