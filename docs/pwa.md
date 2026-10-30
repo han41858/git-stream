@@ -350,3 +350,53 @@ PWA 설치 후 사용하는 대표 주소는 Vercel Production의 안정적인 �
 실제 Android Chrome 설치, iOS Safari 홈 화면·상태 표시줄·키보드·회전, 데스크톱 OS 설치 실행은 실기기에서 최종 확인해야 한다. Chromium 에뮬레이션은 이 검증을 대체하지 않는다. 이번 작업은 실제 Production 배포를 수행하지 않으므로, 공개 Production 대표 주소(`https://git-stream-view.vercel.app/`)에서 설치·업데이트가 끝까지 되는지는 배포 후 확인해야 한다. 보호된 Preview는 먼저 Vercel 인증을 완료해야 하며 그 결과가 익명 Production 접근을 입증하지 않는다.
 
 이미 로딩된 Git 데이터는 기존 정책에 따라 현재 탭 메모리에 남을 수 있다. 오프라인으로 새 저장소를 여는 경우에는 기존 오류·Retry를 사용하며, 이미 정상 로딩한 저장소의 자동 갱신은 기존 숨김·온라인 복귀 정책을 따른다. 오프라인 Git 데이터베이스나 백그라운드 동기화는 없다.
+
+## 14. Service Worker 장애 복구·긴급 해제
+
+### 일반 롤백
+
+- 정상 버전으로 되돌릴 때도 **같은 Origin·같은 `/sw.js` 경로**로 정상 앱 셸과 SW를 함께 제공한다. 정적 자산·HTML·SW를 서로 다른 빌드에서 섞지 않는다.
+- 기존 Vercel Git Integration의 PR·검사·브랜치 정책을 유지한다. Preview에서 복구를 확인한 뒤 승인된 Production 릴리즈/롤백 절차를 따른다. CLI 중복 배포, Secrets, 보호 설정 변경은 필요하지 않다.
+- 문제가 있던 SW의 캐시가 탐색을 처리하므로, PWA 도입 이전 버전으로 서버만 되돌리거나 `/sw.js`를 삭제·404로 만드는 것만으로 이미 설치된 SW가 해제되지는 않는다.
+
+### 긴급 해제용 빌드
+
+기존 SW·앱 셸 자체가 잘못되어 일반 업데이트 안내로 복구할 수 없을 때 운영자가 선택하는 예외 절차다. **현재 PR의 평상시 설정에는 활성화하지 않는다.**
+
+1. 정상 정적 앱을 기준으로 `vite.config.ts`의 `VitePWA({ ... })`에 임시로 `selfDestroying: true`를 추가하고 기존 `npm run build`를 실행한다. `filename`/`scope`/배포 Origin은 바꾸지 않는다. 별도 환경 변수는 만들지 않는다.
+2. `dist/sw.js`가 `registration.unregister()`를 포함하는 해제용 worker인지 확인한다. 평상시 precache worker와 혼동하지 않는다.
+3. 독립 Origin의 Preview/로컬 환경에서 이전 PWA를 먼저 설치한 후 같은 Origin에 해제 빌드를 제공해 검증한다. 매번 달라지는 Preview 배포 URL끼리는 이 검증이 되지 않는다. 보호된 Preview는 기존 인증을 사용한다.
+4. 실제 서비스 반영에는 별도 Production 승인이 필요하다. 장애 안내 후 정상 PR·릴리즈 또는 승인된 Vercel 롤백 경로로 배포한다. 이 문서 작성·검증 과정에서는 실제 Production에 배포하지 않는다.
+5. 기존 클라이언트가 SW 갱신 검사를 수행하면 해제 worker가 즉시 활성화되어 등록을 해제하고 제어 중인 창을 현재 URL로 다시 이동시킨다. **이 예외 절차는 다른 열린 창도 새로고침할 수 있다.** 평상시 사용자 확인 방식과 다르므로 장애 복구 때만 사용한다.
+6. 플러그인 2.0.0이 생성하는 해제 worker는 **해당 Origin의 Cache Storage 전체를 삭제**한다. GitStream 전용 Origin에서 사용하고, 같은 Origin을 다른 앱과 공유한다면 먼저 영향 범위를 검토한다. localStorage·PAT는 삭제하지 않는다.
+7. DevTools Application → Service Workers에서 해당 scope 등록 해제를 확인하고 Cache Storage가 비었는지 확인한다. 기존 쿼리·토큰 복원·GitHub 조회를 확인한다. 다른 Origin의 Preview/Production 캐시는 영향을 받지 않아야 한다.
+8. 오프라인·장기 미접속 클라이언트에는 즉시 도달하지 않는다. 필요한 복구 기간 동안 같은 `/sw.js`의 해제 응답을 유지한다. 등록 코드나 endpoint를 성급히 삭제하지 않는다. 안정화 후 정상 PWA를 복원하면 평상시 등록·사용자 확인 정책으로 돌아간다.
+
+`selfDestroying`은 새 해제 worker를 받은 클라이언트에만 작동한다. 단순히 배포 성공 상태만 보고 모든 설치가 해제되었다고 판단하지 않는다.
+
+### 개별 브라우저의 수동 복구
+
+장애 영향이 있는 **GitStream Origin에서만** DevTools를 사용한다. 해당 scope를 unregister하고 현재 앱의 precache만 삭제한 뒤 다시 연다. 예시:
+
+```js
+const registration = await navigator.serviceWorker.getRegistration('/');
+if (registration?.scope === `${location.origin}/`) await registration.unregister();
+for (const name of await caches.keys()) {
+  if (name.startsWith('workbox-precache-') && name.endsWith(`-${location.origin}/`)) {
+    await caches.delete(name);
+  }
+}
+location.reload();
+```
+
+이 절차에는 `localStorage.clear()`, 토큰 삭제, 모든 사이트 데이터 삭제를 포함하지 않는다. 정상 PWA 빌드를 다시 열면 SW가 재등록될 수 있으므로 서버에서 제공 중인 복구 빌드와 함께 확인한다.
+
+### 운영상 선택과 후속 항목
+
+- 디버그 JS·CSS도 정적 precache에 포함한다. 오프라인에서 기존 디버그 패널을 사용할 수 있도록 한 선택이며, 온라인 지연 로딩 절감분 약 6.7KB는 SW 설치 시 내려받는다.
+- 설치 스플래시의 초기 색은 기본 어두운 브랜드 색으로 고정하고 실행 후에는 기존 시스템/앱 테마를 적용한다.
+- 업데이트 안내는 디버그 진입·로딩 실패 안내보다 위에 두고 하단 위치를 올려 두 안내의 버튼이 겹치지 않게 한다. 패널이 열려 있어도 업데이트 안내를 조작하고 닫을 수 있다.
+- 원본 1.2MB 로고의 화면 표시용 축소는 기존 UI 자산 최적화에 해당하므로 별도 후속 작업으로 남긴다. 이번 PWA 캐시는 그 원본을 포함한 약 1.7MiB이며 API 데이터는 포함하지 않는다.
+- 리뷰 후 로컬 Chromium에서 `selfDestroying: true`인 별도 검증 빌드를 실제 제공해 SW 등록 0개·Cache Storage 0개를 확인했다. PAT와 쿼리·fragment는 보존되고 다른 Origin의 캐시는 유지되었으며 정상 PWA 빌드 재등록도 확인했다. 평상시 프로젝트 설정에는 이 옵션을 켜지 않았다.
+- 업데이트 안내와 디버그 진입 버튼의 실제 경계가 겹치지 않는 것, 디버그 패널을 연 상태에서도 Update app을 선택할 수 있는 것을 확인했다.
+- `npm audit --omit=dev` 결과는 0건이다. 전체 감사의 low 4건은 `workbox-build`·`@rollup/plugin-node-resolve`·`deepmerge` 빌드 경로이며 후속으로 추적한다. 자동 수정 제안은 필요한 v2 API가 없는 `vite-plugin-pwa` 0.2.1로의 대폭 다운그레이드이므로 적용하지 않는다.
