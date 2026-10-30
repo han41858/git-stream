@@ -256,7 +256,7 @@ export class History {
     if(!this.checkedRefs.has(name)){unverified=true;break;}
    }
    this.publish({ranking:{...this.snapshot.ranking,complete:!this.pullsNext&&!unverified}});
-  }catch(e){if(!controller.signal.aborted)this.publish({ranking:{...this.snapshot.ranking,error:(e as Error).message,retryAt:e instanceof GitHubError?e.retryAt||null:null}});}
+  }catch(e){if(!controller.signal.aborted)this.publish({ranking:{...this.snapshot.ranking,error:e instanceof GitHubError&&e.status===403&&!e.retryAt?'Needs Pull requests: Read-only.':(e as Error).message,retryAt:e instanceof GitHubError?e.retryAt||null:null}});}
   finally{if(this.rankingController===controller&&!controller.signal.aborted)this.publish({ranking:{...this.snapshot.ranking,busy:false}});}
  };
  findBranch=async(name:string)=>{

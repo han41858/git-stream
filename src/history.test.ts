@@ -620,3 +620,18 @@ test('changing base before accepted work starts cannot run that work in the new 
   assert.deepEqual(h.getSnapshot().commits.map(c=>c.sha),['new']);assert.deepEqual(h.getSnapshot().pendingSources,[]);
  });
 });
+test('PR ranking permission denial names the missing permission and keeps the graph',async()=>{
+ const original=globalThis.fetch;
+ try{
+  globalThis.fetch=async input=>{
+   const url=new URL(String(input));
+   if(url.pathname.endsWith('/pulls'))return new Response(JSON.stringify({message:'Resource not accessible by personal access token'}),{status:403});
+   if(url.pathname.endsWith('/branches'))return response([{name:'main',commit:{sha:'m'}}]);
+   if(url.pathname.endsWith('/commits'))return response([commit('m')]);
+   return response({default_branch:'main',stargazers_count:0});
+  };
+  const h=new History();await h.open('a/b','token');await h.loadRecommendations();
+  assert.equal(h.getSnapshot().ranking.error,'Needs Pull requests: Read-only.');
+  assert.equal(h.getSnapshot().error,'');assert.equal(h.getSnapshot().commits.length,1);
+ }finally{globalThis.fetch=original;}
+});
