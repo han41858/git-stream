@@ -29,13 +29,14 @@ function dashboardUrl(status) {
           path[1] === PROJECT && /^(?:dpl_)?[A-Za-z0-9]+$/.test(path[2])) return url.href;
     } catch { /* Try the other GitHub status link. */ }
   }
-  throw new Error('Deployment status does not identify the expected Vercel team and project.');
+  return null;
 }
 
 function deploymentUrl(value) {
   const url = new URL(value);
   if (url.protocol !== 'https:' || url.port || url.username || url.password ||
-      !/^git-stream-[a-z0-9-]+\.vercel\.app$/.test(url.hostname)) {
+      !(url.hostname === new URL(PRODUCTION_URL).hostname ||
+        /^git-stream-[a-z0-9]+-han-janghyuns-projects\.vercel\.app$/.test(url.hostname))) {
     throw new Error('Unexpected deployment URL.');
   }
   return url.href;
@@ -77,7 +78,22 @@ export async function inspectDeployment({ github, context, core }) {
     ({ data: status } = await github.rest.repos.getDeploymentStatus({ ...scope, status_id: statusId }));
   }
   if (status.state !== 'success' || !vercelBot(status.creator)) throw new Error('Deployment success was not confirmed by Vercel.');
-  const dashboard = dashboardUrl(status), url = deploymentUrl(status.environment_url);
+  let dashboard = dashboardUrl(status);
+  if (!dashboard) {
+    // Vercel's deployment status links point to the deployment itself. The
+    // authenticated commit status supplies the team/project dashboard link.
+    const commitStatuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
+      ...params(context), ref: deployment.sha, per_page: 100,
+    });
+    for (const commitStatus of commitStatuses) {
+      if (commitStatus.state === 'success' && commitStatus.context === 'Vercel' && vercelBot(commitStatus.creator)) {
+        dashboard = dashboardUrl(commitStatus);
+        if (dashboard) break;
+      }
+    }
+  }
+  if (!dashboard) throw new Error('Deployment status does not identify the expected Vercel team and project.');
+  const url = deploymentUrl(status.environment_url);
   releaseTag(status.created_at);
   const { data: comparison } = await github.rest.repos.compareCommits({
     ...params(context), base: deployment.sha, head: 'main',

@@ -12,7 +12,10 @@ function fixture() {
       production_environment: true, transient_environment: false, creator: bot },
     status: { id: 99, state: 'success', creator: bot, created_at: '2026-10-30T14:45:12Z',
       environment_url: 'https://git-stream-abc-han-janghyuns-projects.vercel.app',
-      log_url: 'https://vercel.com/han-janghyuns-projects/git-stream/Abc123' },
+      log_url: 'https://git-stream-abc-han-janghyuns-projects.vercel.app',
+      target_url: 'https://git-stream-abc-han-janghyuns-projects.vercel.app' },
+    commitStatuses: [{ state: 'success', context: 'Vercel', creator: bot,
+      target_url: 'https://vercel.com/han-janghyuns-projects/git-stream/Abc123' }],
     comparison: 'ahead', refs: [], releases: [], calls: [], failNotes: false, failRelease: false,
   };
   const context = { repo: { owner: 'han41858', repo: 'git-stream' },
@@ -26,6 +29,7 @@ function fixture() {
     getDeploymentStatus: wrap('getDeploymentStatus', () => state.status),
     listDeploymentStatuses: wrap('listDeploymentStatuses', () => state.statuses || [state.status]),
     compareCommits: wrap('compareCommits', () => ({ status: state.comparison })),
+    listCommitStatusesForRef: wrap('listCommitStatusesForRef', () => state.commitStatuses),
     listReleases: wrap('listReleases', () => state.releases),
     generateReleaseNotes: wrap('generateReleaseNotes', () => {
       if (state.failNotes) throw error(503);
@@ -111,8 +115,25 @@ test('another project or team cannot publish this repository release', async () 
   for (const url of ['https://vercel.com/other/git-stream/Abc123',
     'https://vercel.com/han-janghyuns-projects/other/Abc123',
     'https://vercel.com.attacker.example/han-janghyuns-projects/git-stream/Abc123']) {
-    const f = fixture(); f.state.status.log_url = url;
+    const f = fixture(); f.state.commitStatuses[0].target_url = url;
     await assert.rejects(publishRelease(f.api), /expected Vercel team and project/);
+    assert.equal(f.writes().length, 0);
+  }
+});
+
+test('the real Vercel deployment-status URL shape is cross-checked against its authenticated commit status', async () => {
+  const f = fixture();
+  assert.equal((await inspectDeployment(f.api)).dashboardUrl, f.state.commitStatuses[0].target_url);
+  assert.equal(f.state.calls.find(call => call.name === 'listCommitStatusesForRef').args.ref, SHA);
+  f.state.commitStatuses[0].creator = { ...bot, id: 1 };
+  await assert.rejects(inspectDeployment(f.api), /expected Vercel team and project/);
+});
+
+test('lookalike project and team deployment hosts are rejected even with a valid project commit status', async () => {
+  for (const url of ['https://git-stream-other-abc-han-janghyuns-projects.vercel.app',
+    'https://git-stream-abc-other-team.vercel.app']) {
+    const f = fixture(); f.state.status.environment_url = url;
+    await assert.rejects(publishRelease(f.api), /Unexpected deployment URL/);
     assert.equal(f.writes().length, 0);
   }
 });
