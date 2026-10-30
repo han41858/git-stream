@@ -26,6 +26,7 @@ GitStream은 GitHub 저장소의 커밋과 브랜치 관계를 **세로형 그�
 - 토큰 패널에서 토큰 유무에 따른 API 한도(IP당 시간당 약 60회 / 약 5,000회)를 짧게 안내
 - PAT 발급 안내: 저장소 선택 및 `Contents: Read-only` 권한; PR 추천 집계에는 `Pull requests: Read-only`도 필요
 - 적용한 토큰은 브라우저 localStorage에 저장하고 새로고침 시 자동 복원. 삭제 시 저장된 토큰과 화면의 이력을 함께 제거하며 저장소 접근 오류는 토큰 패널에 표시
+- 저장된 토큰 보호를 위해 CSP로 스크립트는 같은 출처에서만 실행하고 네트워크 요청은 `api.github.com`으로만 허용
 - 토큰을 URL, sessionStorage, IndexedDB, 로그, 분석 서비스에 저장하거나 노출하지 않음
 - 인증 토큰은 GitHub API 요청에만 사용
 - 토큰이 잘못되었거나 접근 권한이 없을 때 안내

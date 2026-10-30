@@ -55,7 +55,7 @@ On the deployment, open a public repository such as `han41858/git-stream` and `a
 
 The current cloud environment's `api.github.com` egress policy is separate from Vercel. API requests originate in the visitor's browser. Unit tests and mocked browser checks do not establish that live GitHub access works; live API and private-repository validation remain release checks.
 
-Hashed Vite assets use immutable caching; the HTML keeps Vercel's default caching. Security headers disable framing and sensitive device permissions, prevent MIME sniffing, and omit the referrer. Query-based navigation does not require a catch-all rewrite.
+Hashed Vite assets use immutable caching; the HTML keeps Vercel's default caching. Security headers disable framing and sensitive device permissions, prevent MIME sniffing, and omit the referrer. A Content Security Policy allows scripts only from this site and network requests only to `api.github.com`, so a stored token cannot be sent elsewhere by injected code. Query-based navigation does not require a catch-all rewrite.
 
 Vercel GitHub bot comments are disabled through the project’s commit/PR comment settings and `github.silent` in `vercel.json`.
 
