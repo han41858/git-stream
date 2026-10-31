@@ -82,7 +82,12 @@ function App(){
  },[options,auth,details]);
  function applyToken(){const value=token.trim(),error=saveStoredToken(value);setToken(value);setAppliedToken(value);setAuthRevision(v=>v+1);setTokenStorageError(error);history.setToken(value);setTokenApplied(value!=='');setAuth(true);if(state.repo){setSelected(null);void measured.open(state.repo,value);}}
  function removeToken(){measured.cancel();const error=saveStoredToken('');history.clear();void info.open('','');setToken('');setAppliedToken('');setAuthRevision(v=>v+1);setTokenApplied(false);setTokenStorageError(error);setSelected(null);setAuth(!!error);}
- function open(){setSelected(null);void measured.open(input,appliedToken);}
+ function open(){
+  // A standalone PWA has no address bar. Handle the explicit local command
+  // before repository loading so it cannot clear history or send an API request.
+  if(input.trim()===':debug'){setInput(state.repo);debug.setMode('panel');return;}
+  setSelected(null);void measured.open(input,appliedToken);
+ }
  function openTokenPopup(){setErrorDismissed(true);setOptions(false);setSelected(null);setAuth(true);}
  function select(commit:Commit){setSelected(commit);}
  return <div className="app" data-theme={resolvedTheme} style={{'--toolbar-bottom':`${topInset-20}px`} as React.CSSProperties}>

@@ -95,6 +95,8 @@ Conditional ETag reads reuse unchanged data. Known commits are reused. For a com
 
 In development, press **Ctrl + Shift + D** to open the debug panel. On any build, use `/?repo=owner%2Frepository&debug=1` to enable the small debug entry button. Closing the panel keeps measurements running; **Disable debug** stops and clears them.
 
+In the installed PWA, enter `:debug` in the existing repository field and press Enter or Explore. This also works on the web. It opens diagnostics and restores the current repository field without reloading the page, changing the URL, or issuing API requests. It keeps existing measurements if already enabled; otherwise it starts a new in-memory debug session. No debug button is shown by default, and the command needs to be entered again after a fresh launch or reload unless `?debug=1` is present.
+
 The panel separates HTTP/cache/quota observations, initial/manual/automatic refreshes, DAG layout and Canvas drawing. Each category retains its latest 20 samples in memory. **Copy diagnostics** exports numeric, sanitized JSON; details and refresh summaries also appear in DevTools Console. No extra API calls, external telemetry or persisted diagnostics are added. See [the developer debug specification](docs/developer-debug-mode.md) for measurement boundaries and limitations.
 
 ## Installable web app (PWA)
