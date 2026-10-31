@@ -24,7 +24,7 @@ import './style.css';
 const DEMO_REPO='han41858/git-stream';
 const BUILD_DATE=import.meta.env.DEV?'':new Intl.DateTimeFormat(undefined,{
  year:'numeric',month:'2-digit',day:'2-digit',
- hour:'2-digit',minute:'2-digit',second:'2-digit',timeZoneName:'short',
+ hour:'2-digit',minute:'2-digit',
 }).format(new Date(__BUILD_TIME__));
 
 function App(){
