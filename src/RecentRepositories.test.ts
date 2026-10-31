@@ -44,6 +44,13 @@ test('search is a local case-insensitive substring match and supports GitHub URL
  assert.deepEqual(matchingRecentRepositories(entries,'https://github.com/ANGULAR/angular.git/'),[entries[0]]);
  assert.deepEqual(matchingRecentRepositories(entries,':debug'),[]);
 });
+test('the unchanged current address shows all recent visits in visit order, while other input is filtered',()=>{
+ const entries=[row('angular/angular'),row('han41858/git-stream'),row('other/project')];
+ assert.deepEqual(matchingRecentRepositories(entries,'han41858/git-stream','han41858/git-stream'),entries);
+ assert.deepEqual(matchingRecentRepositories(entries,'angular','han41858/git-stream'),[entries[0]]);
+ assert.deepEqual(matchingRecentRepositories(entries,'han41858/git-stream'),[entries[1]]);
+ assert.deepEqual(matchingRecentRepositories(entries,'missing/repo','han41858/git-stream'),[]);
+});
 test('first PAT registration, replacement and deletion clear only private visits',()=>{
  for(const [previous,next] of [['','first-pat'],['old-pat','new-pat'],['old-pat','']]){
   const {store,storage}=setup([row('public/repository'),row('private/repository','private',90)]);storage.data.set('unrelated.setting','keep');

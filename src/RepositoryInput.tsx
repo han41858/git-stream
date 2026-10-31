@@ -3,17 +3,20 @@ import {lowercaseField} from './repoInput';
 import {matchingRecentRepositories,type RecentRepositories} from './RecentRepositories';
 import './recentRepositories.css';
 
-type Props={value:string;onChange:(value:string)=>void;onOpen:(value:string)=>void;onRecent:(repository:string)=>void;recent:RecentRepositories;popupOpen:boolean};
+type Props={value:string;current:string;onChange:(value:string)=>void;onOpen:(value:string)=>void;onRecent:(repository:string)=>void;recent:RecentRepositories;popupOpen:boolean};
 
-export function RepositoryInput({value,onChange,onOpen,onRecent,recent,popupOpen}:Props){
+export function RepositoryInput({value,current,onChange,onOpen,onRecent,recent,popupOpen}:Props){
  const input=useRef<HTMLInputElement>(null),form=useRef<HTMLFormElement>(null),listId=useId();
+ const selectionFrame=useRef<number|null>(null);
  const snapshot=useSyncExternalStore(recent.subscribe,recent.getSnapshot);
- const [open,setOpen]=useState(false),[active,setActive]=useState<string|null>(null),[menuHeight,setMenuHeight]=useState<number|null>(null);
- const matches=matchingRecentRepositories(snapshot.entries,value),activeIndex=matches.findIndex(entry=>entry.repository===active);
+ const [open,setOpen]=useState(false),[edited,setEdited]=useState(false),[active,setActive]=useState<string|null>(null),[menuHeight,setMenuHeight]=useState<number|null>(null);
+ const matches=matchingRecentRepositories(snapshot.entries,value,edited?undefined:current),activeIndex=matches.findIndex(entry=>entry.repository===active);
  const showing=open&&!popupOpen&&snapshot.available&&matches.length>0,expanded=showing&&menuHeight!==0;
  const activeId=expanded&&activeIndex>=0?`${listId}-${activeIndex}`:undefined;
- function close(){setOpen(false);setActive(null);}
+ function cancelSelection(){if(selectionFrame.current!==null){cancelAnimationFrame(selectionFrame.current);selectionFrame.current=null;}}
+ function close(){cancelSelection();setOpen(false);setActive(null);}
  function choose(repository:string){close();onChange(repository);input.current?.blur();onRecent(repository);}
+ useEffect(()=>()=>cancelSelection(),[]);
  useEffect(()=>{if(popupOpen)close();},[popupOpen]);
  useEffect(()=>{
   if(!open)return;
@@ -35,9 +38,17 @@ export function RepositoryInput({value,onChange,onOpen,onRecent,recent,popupOpen
  return <form className="repo-form recent-form" ref={form} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))close();}} onSubmit={event=>{event.preventDefault();close();input.current?.blur();onOpen(value);}}>
   <div className="repo-input">
    <input ref={input} aria-label="GitHub repository" role="combobox" aria-autocomplete="list" aria-haspopup="grid" aria-expanded={expanded} aria-controls={expanded?listId:undefined} aria-activedescendant={activeId} autoComplete="off" enterKeyHint="go" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={value} placeholder="owner/repository"
-    onFocus={()=>{setOpen(true);setActive(null);}}
-    onChange={event=>{onChange(lowercaseField(event.currentTarget));setOpen(true);setActive(null);}}
+    onFocus={event=>{
+     setOpen(true);setActive(null);setEdited(false);
+     if(current&&value===current){
+      const field=event.currentTarget;field.select();cancelSelection();
+      selectionFrame.current=requestAnimationFrame(()=>{selectionFrame.current=null;if(document.activeElement===field&&field.value===current)field.setSelectionRange(0,field.value.length);});
+     }
+    }}
+    onBlur={cancelSelection} onPointerDown={cancelSelection}
+    onChange={event=>{cancelSelection();setEdited(true);onChange(lowercaseField(event.currentTarget));setOpen(true);setActive(null);}}
     onKeyDown={event=>{
+     cancelSelection();
      if(event.nativeEvent.isComposing)return;
      if((event.key==='ArrowDown'||event.key==='ArrowUp')&&!popupOpen&&snapshot.available&&matches.length){
       event.preventDefault();setOpen(true);

@@ -23,8 +23,8 @@ export function normalizeRecentRepositories(value:unknown):RecentRepository[]{
  }
  return [...entries.values()].sort((a,b)=>b.visitedAt-a.visitedAt).slice(0,RECENT_REPOSITORIES_LIMIT);
 }
-export function matchingRecentRepositories(entries:readonly RecentRepository[],input:string){
- const query=lowercaseRepoInput(input.trim()).replace(/^https:\/\/github\.com\//,'').replace(/\/$/,'').replace(/\.git$/,'');
+export function matchingRecentRepositories(entries:readonly RecentRepository[],input:string,current?:string){
+ const query=current&&input===current?'':lowercaseRepoInput(input.trim()).replace(/^https:\/\/github\.com\//,'').replace(/\/$/,'').replace(/\.git$/,'');
  return entries.filter(entry=>entry.repository.includes(query));
 }
 const sameEntries=(a:readonly RecentRepository[],b:readonly RecentRepository[])=>a.length===b.length&&a.every((entry,i)=>entry.repository===b[i].repository&&entry.visibility===b[i].visibility&&entry.visitedAt===b[i].visitedAt);

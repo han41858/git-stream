@@ -115,7 +115,7 @@ function App(){
   </main>
   <header className="topbar" ref={toolbarRef}>
    <a className="brand" href="./" aria-label="GitStream home"><img src={logo} alt="" width="36" height="36"/> GitStream</a>
-   <RepositoryInput value={input} onChange={setInput} onOpen={open} onRecent={openRecent} recent={recent} popupOpen={auth||options||details}/>
+   <RepositoryInput value={input} current={state.meta?state.repo:''} onChange={setInput} onOpen={open} onRecent={openRecent} recent={recent} popupOpen={auth||options||details}/>
    <div className="view-controls"><div className="base-control"><BranchPicker history={history} state={state} onPicked={()=>{setSelected(null);}}/></div>
     <button className="direction-toggle" aria-label={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} title={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} aria-pressed={reverse} onClick={()=>{setSelected(null);void history.setDirection(!reverse);}}>{reverse?'↓ Newer':'↓ Older'}</button>
     <RefreshButton nextAt={refreshState.nextAt} interval={seconds*1000} sweeping={autoRefresh&&!!state.meta&&refreshState.lastSuccess!==null&&!refreshState.running&&refreshRetrySeconds===0} disabled={!state.meta||(!state.commits.length&&state.busy)||refreshState.running||refreshRetrySeconds>0} onRefresh={()=>void loop.refresh()}/>
