@@ -29,7 +29,7 @@ export function RepositoryInput({value,current,onChange,onOpen,onRecent,recent,p
   const viewport=window.visualViewport;
   const update=()=>{
    const bottom=viewport?viewport.offsetTop+viewport.height:window.innerHeight;
-   setMenuHeight(Math.max(0,Math.min(360,bottom-(form.current?.getBoundingClientRect().bottom||0)-16)));
+   setMenuHeight(Math.max(0,Math.min(360,bottom-(input.current?.getBoundingClientRect().bottom||0)-16)));
   };
   update();window.addEventListener('resize',update);viewport?.addEventListener('resize',update);viewport?.addEventListener('scroll',update);
   return()=>{window.removeEventListener('resize',update);viewport?.removeEventListener('resize',update);viewport?.removeEventListener('scroll',update);};
@@ -59,19 +59,19 @@ export function RepositoryInput({value,current,onChange,onOpen,onRecent,recent,p
      else if(event.ctrlKey&&event.shiftKey&&event.key.toLowerCase()==='d')close();
     }}/>
    {value&&<button type="button" className="clear-repo" aria-label="Clear repository" title="Clear repository" onPointerDown={event=>event.preventDefault()} onClick={()=>{onChange('');setActive(null);setOpen(true);input.current?.focus();}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>}
+   {expanded&&<div className="recent-menu" style={menuHeight===null?undefined:{maxHeight:`max(0px, calc(${menuHeight}px - var(--safe-bottom)))`}}>
+    {/* A grid popup permits separate, keyboard-accessible delete controls inside each row. */}
+    <div id={listId} role="grid" aria-label="Recent repositories" className="recent-grid">
+     {matches.map((entry,index)=><div key={entry.repository} role="row" aria-selected={active===entry.repository} className="recent-row">
+      <div role="gridcell" id={`${listId}-${index}`}><button type="button" tabIndex={-1} className="recent-open" onPointerDown={event=>event.preventDefault()} onClick={()=>choose(entry.repository)} title={entry.repository}>
+       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.6 7.4M3 5v6h6M12 7v5l3 2"/></svg><span>{entry.repository}</span>
+      </button></div>
+      <div role="gridcell"><button type="button" className="recent-remove" aria-label={`Remove ${entry.repository} from history`} title={`Remove ${entry.repository} from history`} onPointerDown={event=>event.preventDefault()} onClick={()=>{recent.remove(entry.repository);setActive(null);input.current?.focus({preventScroll:true});}}>×</button></div>
+     </div>)}
+    </div>
+    <button type="button" className="recent-clear" onPointerDown={event=>event.preventDefault()} onClick={()=>{recent.clear();setActive(null);input.current?.focus({preventScroll:true});}}>Clear history</button>
+   </div>}
   </div>
   <button type="submit" className="primary explore-button" aria-label="Explore repository" title="Explore repository"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button>
-  {expanded&&<div className="recent-menu" style={menuHeight===null?undefined:{maxHeight:`max(0px, calc(${menuHeight}px - var(--safe-bottom)))`}}>
-   {/* A grid popup permits separate, keyboard-accessible delete controls inside each row. */}
-   <div id={listId} role="grid" aria-label="Recent repositories" className="recent-grid">
-    {matches.map((entry,index)=><div key={entry.repository} role="row" aria-selected={active===entry.repository} className="recent-row">
-     <div role="gridcell" id={`${listId}-${index}`}><button type="button" tabIndex={-1} className="recent-open" onPointerDown={event=>event.preventDefault()} onClick={()=>choose(entry.repository)} title={entry.repository}>
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.6 7.4M3 5v6h6M12 7v5l3 2"/></svg><span>{entry.repository}</span>
-     </button></div>
-     <div role="gridcell"><button type="button" className="recent-remove" aria-label={`Remove ${entry.repository} from history`} title={`Remove ${entry.repository} from history`} onPointerDown={event=>event.preventDefault()} onClick={()=>{recent.remove(entry.repository);setActive(null);input.current?.focus({preventScroll:true});}}>×</button></div>
-    </div>)}
-   </div>
-   <button type="button" className="recent-clear" onPointerDown={event=>event.preventDefault()} onClick={()=>{recent.clear();setActive(null);input.current?.focus({preventScroll:true});}}>Clear history</button>
-  </div>}
  </form>;
 }
