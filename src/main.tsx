@@ -14,11 +14,12 @@ import {CommitInfoStore} from './CommitInfoStore';
 import {RefreshLoop} from './RefreshLoop';
 import {RefreshButton} from './RefreshButton';
 import {lowercaseRepoInput,type Commit} from './model';
-import {lowercaseField} from './repoInput';
+import {RepositoryInput} from './RepositoryInput';
+import {RecentRepositories,RECENT_REPOSITORIES_KEY} from './RecentRepositories';
 import logo from '../assets/logo-320.png';
 import {emojify} from './emoji';
 import {requestActivity} from './requestActivity';
-import {readStoredToken,saveStoredToken} from './tokenStorage';
+import {readStoredToken,saveStoredToken,TOKEN_STORAGE_KEY} from './tokenStorage';
 import {TokenPermissions} from './TokenPermissions';
 import './style.css';
 
@@ -31,7 +32,10 @@ const BUILD_DATE=import.meta.env.DEV?'':(()=>{
 })();
 
 function App(){
- const [history]=useState(()=>new History());
+ const [savedToken]=useState(readStoredToken);
+ const authToken=useRef(savedToken.token);
+ const [recent]=useState(()=>new RecentRepositories({allowPrivate:()=>{const saved=readStoredToken();return !!authToken.current&&!saved.error&&authToken.current===saved.token;}}));
+ const [history]=useState(()=>new History(recent.repositoryMetadata));
  const [info]=useState(()=>new CommitInfoStore());
  const extras=useSyncExternalStore(info.subscribe,info.getSnapshot);
  const [loop]=useState(()=>new RefreshLoop(kind=>measureRefresh(kind,history,info,async cycle=>{
@@ -46,7 +50,6 @@ function App(){
  const retrySeconds=useRetryCountdown(state.retryAt);
  const discoverySeconds=useRetryCountdown(state.discoveryRetryAt);
  const [input,setInput]=useState(lowercaseRepoInput(new URLSearchParams(location.search).get('repo')||''));
- const [savedToken]=useState(readStoredToken);
  const [appliedToken,setAppliedToken]=useState(savedToken.token),[authRevision,setAuthRevision]=useState(0),[autoRefresh,setAutoRefresh]=useState(true),[intervalChoice,setIntervalChoice]=useState<number|null>(null);
  const seconds=intervalChoice===30&&!appliedToken?300:intervalChoice??(appliedToken?60:300);
  const refreshRetrySeconds=useRetryCountdown(refreshState.retryAt||null);
@@ -57,7 +60,7 @@ function App(){
  const resolvedTheme=theme==='system'?systemTheme:theme;
  useEffect(()=>{const media=window.matchMedia('(prefers-color-scheme:light)');const update=()=>setSystemTheme(media.matches?'light':'dark');media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
  useEffect(()=>{document.querySelector('meta[name="theme-color"]')?.setAttribute('content',resolvedTheme==='light'?'#f2f6fc':'#070a11');},[resolvedTheme]);
- const repoInputRef=useRef<HTMLInputElement>(null),optionsRef=useRef<HTMLDivElement>(null),toolbarRef=useRef<HTMLElement>(null),authRef=useRef<HTMLElement>(null),tokenButtonRef=useRef<HTMLButtonElement>(null),detailsRef=useRef<HTMLElement>(null);
+ const optionsRef=useRef<HTMLDivElement>(null),toolbarRef=useRef<HTMLElement>(null),authRef=useRef<HTMLElement>(null),tokenButtonRef=useRef<HTMLButtonElement>(null),detailsRef=useRef<HTMLElement>(null);
  const [topInset,setTopInset]=useState(window.innerWidth<=800?136:108);
  useLayoutEffect(()=>{
   const el=toolbarRef.current!;const update=()=>setTopInset(Math.ceil(el.getBoundingClientRect().bottom)+20);
@@ -72,6 +75,10 @@ function App(){
  useEffect(()=>{const changed=()=>loop.visibilityChanged();document.addEventListener('visibilitychange',changed);window.addEventListener('online',changed);window.addEventListener('offline',changed);return()=>{loop.stop();document.removeEventListener('visibilitychange',changed);window.removeEventListener('online',changed);window.removeEventListener('offline',changed);};},[loop]);
  useEffect(()=>{if(state.meta&&!state.busy&&extras.repo===state.repo&&!extras.busy&&!Object.keys(extras.errors).length&&!state.error)loop.loaded();},[loop,state.meta,state.busy,state.error,extras]);
  useEffect(()=>{if(extras.repo===state.repo){if(selected)void info.inspect(selected.sha);else info.clearSelection();}},[info,selected?.sha,extras.repo,state.repo]);
+ useEffect(()=>{
+  const changed=(event:StorageEvent)=>{if(event.key===null||event.key===RECENT_REPOSITORIES_KEY||event.key===TOKEN_STORAGE_KEY)recent.reload();};
+  window.addEventListener('storage',changed);return()=>window.removeEventListener('storage',changed);
+ },[recent]);
  useEffect(()=>{history.setToken(savedToken.token);if(input)void measured.open(input,savedToken.token);return()=>{measured.cancel();history.cancel();};},[history,savedToken]);
  useEffect(()=>{if(state.meta){const url=new URL(location.href);url.searchParams.set('repo',state.repo);window.history.replaceState(null,'',url.pathname+url.search+url.hash);}},[state.repo,state.meta]);
  useEffect(()=>{
@@ -87,13 +94,18 @@ function App(){
   document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
   return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
  },[options,auth,details]);
- function applyToken(){const value=token.trim(),error=saveStoredToken(value);setToken(value);setAppliedToken(value);setAuthRevision(v=>v+1);setTokenStorageError(error);history.setToken(value);setTokenApplied(value!=='');setAuth(true);if(state.repo){setSelected(null);void measured.open(state.repo,value);}}
- function removeToken(){measured.cancel();const error=saveStoredToken('');history.clear();void info.open('','');setToken('');setAppliedToken('');setAuthRevision(v=>v+1);setTokenApplied(false);setTokenStorageError(error);setSelected(null);setAuth(!!error);}
- function open(){
+ function applyToken(){const value=token.trim();recent.authenticationChanged(appliedToken,value);const error=saveStoredToken(value);authToken.current=value;recent.reload();setToken(value);setAppliedToken(value);setAuthRevision(v=>v+1);setTokenStorageError(error);history.setToken(value);setTokenApplied(value!=='');setAuth(true);if(state.repo){setSelected(null);void measured.open(state.repo,value);}}
+ function removeToken(){recent.authenticationChanged(appliedToken,'');measured.cancel();const error=saveStoredToken('');authToken.current='';recent.reload();history.clear();void info.open('','');setToken('');setAppliedToken('');setAuthRevision(v=>v+1);setTokenApplied(false);setTokenStorageError(error);setSelected(null);setAuth(!!error);}
+ function open(value:string){
   // A standalone PWA has no address bar. Handle the explicit local command
   // before repository loading so it cannot clear history or send an API request.
-  if(input.trim()===':debug'){setInput(state.repo);debug.setMode('panel');return;}
-  setSelected(null);void measured.open(input,appliedToken);
+  if(value.trim()===':debug'){setInput(state.repo);debug.setMode('panel');return;}
+  setSelected(null);void measured.open(value,appliedToken);
+ }
+ function openRecent(repository:string){
+  setInput(repository);
+  if(repository===state.repo&&state.meta){recent.touch(repository);return;}
+  open(repository);
  }
  function openTokenPopup(){setErrorDismissed(true);setOptions(false);setSelected(null);setAuth(true);}
  function select(commit:Commit){setSelected(commit);}
@@ -103,7 +115,7 @@ function App(){
   </main>
   <header className="topbar" ref={toolbarRef}>
    <a className="brand" href="./" aria-label="GitStream home"><img src={logo} alt="" width="36" height="36"/> GitStream</a>
-   <form className="repo-form" onSubmit={e=>{e.preventDefault();e.currentTarget.querySelector('input')?.blur();open();}}><div className="repo-input"><input ref={repoInputRef} aria-label="GitHub repository" enterKeyHint="go" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={input} onChange={e=>setInput(lowercaseField(e.currentTarget))} placeholder="owner/repository"/>{input&&<button type="button" className="clear-repo" aria-label="Clear repository" title="Clear repository" onPointerDown={event=>event.preventDefault()} onClick={()=>{setInput('');repoInputRef.current?.focus();}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>}</div><button type="submit" className="primary explore-button" aria-label="Explore repository" title="Explore repository"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button></form>
+   <RepositoryInput value={input} onChange={setInput} onOpen={open} onRecent={openRecent} recent={recent} popupOpen={auth||options||details}/>
    <div className="view-controls"><div className="base-control"><BranchPicker history={history} state={state} onPicked={()=>{setSelected(null);}}/></div>
     <button className="direction-toggle" aria-label={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} title={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} aria-pressed={reverse} onClick={()=>{setSelected(null);void history.setDirection(!reverse);}}>{reverse?'↓ Newer':'↓ Older'}</button>
     <RefreshButton nextAt={refreshState.nextAt} interval={seconds*1000} sweeping={autoRefresh&&!!state.meta&&refreshState.lastSuccess!==null&&!refreshState.running&&refreshRetrySeconds===0} disabled={!state.meta||(!state.commits.length&&state.busy)||refreshState.running||refreshRetrySeconds>0} onRefresh={()=>void loop.refresh()}/>
