@@ -1,4 +1,4 @@
-import{test}from'node:test';import assert from'node:assert/strict';import{layout,ancestors,parseRepo,type Commit}from'./model';
+import{test}from'node:test';import assert from'node:assert/strict';import{layout,ancestors,parseRepo,lowercaseRepoInput,type Commit}from'./model';
 const c=(sha:string,...parents:string[]):Commit=>({sha,parents:parents.map(sha=>({sha})),commit:{message:sha,author:{name:'Test',date:'2020-01-01'},committer:null},html_url:`https://github.com/a/b/commit/${sha}`});
 function valid(input:Commit[]){const result=layout(input);assert.equal(result.ordered.length,new Set(input.map(c=>c.sha)).size);const indices=new Map(result.ordered.map((c,i)=>[c.sha,i]));for(const commit of input)for(const p of commit.parents)if(indices.has(p.sha))assert.ok(indices.get(commit.sha)!<indices.get(p.sha)!);return result;}
 test('linear history uses parent topology rather than input or date order',()=>{assert.deepEqual(valid([c('a'),c('c','b'),c('b','a')]).ordered.map(c=>c.sha),['c','b','a']);});
@@ -54,3 +54,4 @@ test('ordering falls back to author time, keeps equal-date ties stable and handl
  const missing={...c('missing'),commit:{message:'missing',author:null,committer:null}};
  assert.deepEqual(valid([missing,dated('first','2026-01-01'),dated('second','2026-01-01'),dated('older','2025-01-01')]).ordered.map(commit=>commit.sha),['first','second','older','missing']);
 });
+test('repository field input is lowercase only and keeps the local debug command',()=>{assert.equal(lowercaseRepoInput('Angular/Angular'),'angular/angular');assert.equal(lowercaseRepoInput('https://GitHub.com/Owner/Repo'),'https://github.com/owner/repo');assert.equal(lowercaseRepoInput(':Debug'),':debug');assert.equal(parseRepo(lowercaseRepoInput('https://GitHub.com/Owner/Repo.git')),'owner/repo');});
