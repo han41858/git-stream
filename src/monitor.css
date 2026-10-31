@@ -4,8 +4,12 @@
 .graph-stage.monitor-stage{top:calc(max(6px,env(safe-area-inset-top,0px)) + 32px);display:flex;gap:1px;background:var(--border)}
 .monitor-column{position:relative;min-width:0;flex:1 1 0;height:100%;overflow:hidden;background:var(--bg)}
 .monitor-column[hidden]{display:none}
-.monitor-repository{position:absolute;z-index:1;top:0;left:8px;right:8px;margin:0;font-size:11px;line-height:26px;font-weight:500;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:var(--bg)}
-.monitor-controls{position:absolute;z-index:4;top:max(6px,env(safe-area-inset-top,0px));right:calc(8px + var(--safe-right));display:flex;gap:6px;align-items:center}
+.monitor-controls{position:absolute;z-index:4;top:max(6px,env(safe-area-inset-top,0px));left:var(--safe-left);right:var(--safe-right);height:32px}
+.monitor-repositories{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:1px;height:100%}
+.monitor-repository{min-width:0;margin:0;padding:0 8px;font-size:14px;line-height:32px;font-weight:500;text-align:center}
+.monitor-repository:first-child{padding-left:44px}.monitor-repository:last-child{padding-right:44px}
+.monitor-repository a{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:underline;text-underline-offset:3px}
+.monitor-controls>.monitor-timer,.monitor-controls>.monitor-exit{position:absolute;top:2px}.monitor-controls>.monitor-timer{left:8px}.monitor-controls>.monitor-exit{right:8px}
 .monitor-timer{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--border);border-radius:7px;font-size:18px;pointer-events:none}
 .monitor-exit{width:28px;height:28px;padding:5px}
 .monitor-status{position:absolute;z-index:1;left:4px;right:4px;bottom:4px;display:flex;align-items:center;flex-wrap:wrap;gap:4px 6px;width:max-content;max-width:calc(100% - 8px);max-height:35%;overflow:auto;padding:4px 6px;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--muted);font-size:10px;overflow-wrap:anywhere}
@@ -25,4 +29,4 @@
 .monitor-setup-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px}.monitor-setup-actions small{color:var(--muted)}.monitor-setup-actions button{min-height:44px}
 .monitor-setup .monitor-share-note{font-size:11px;margin:14px 0 0}.monitor-copy-status{min-height:1.5em;font-size:11px;color:var(--muted)}.monitor-setup-actions{flex-wrap:wrap}
 .monitor-copy{min-width:90px}.monitor-copy[data-state=copied]{color:var(--accent);border-color:var(--accent)}.monitor-copy[data-state=failed]{color:var(--warning);border-color:var(--warning)}
-@media(max-width:800px){.view-controls>.monitor-trigger{padding:5px;width:28px;height:30px}.monitor-setup{padding:20px}.monitor-add input{font-size:16px}.monitor-repository{left:4px;right:4px;font-size:10px}}
+@media(max-width:800px){.view-controls>.monitor-trigger{padding:5px;width:28px;height:30px}.monitor-setup{padding:20px}.monitor-add input{font-size:16px}.monitor-repository{font-size:13px}}
