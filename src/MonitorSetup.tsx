@@ -26,7 +26,7 @@ export function MonitorSetup({current,recent,saved,onStart,onClose}:{current:str
    }
   }}>
    <button className="close" aria-label="Close monitor setup" onClick={onClose}>×</button>
-   <h2 id="monitor-setup-title">Monitor repositories</h2><p>Watch up to {MONITOR_LIMIT} repositories side by side. Landscape works best.</p>
+   <h2 id="monitor-setup-title">Split view</h2><p>Watch up to {MONITOR_LIMIT} repositories side by side. Landscape works best.</p>
    <ol className="monitor-selected" aria-label="Selected repositories">{selected.map(repository=><li key={repository}><span title={repository}>{repository}</span><button type="button" aria-label={`Remove ${repository} from monitor`} onClick={()=>{setSelected(names=>names.filter(name=>name!==repository));setError('');}}>×</button></li>)}</ol>
    <form className="monitor-add" onSubmit={event=>{event.preventDefault();add(input);field.current?.focus();}}>
     <input ref={field} aria-label="Repository to monitor" placeholder="owner/repository" autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={input} onChange={event=>{setInput(lowercaseField(event.currentTarget));setError('');}}/>
@@ -34,7 +34,7 @@ export function MonitorSetup({current,recent,saved,onStart,onClose}:{current:str
    </form>
    {error&&<p className="monitor-setup-error" role="alert">{error}</p>}
    {visits.entries.length>0&&<><h3>Recent repositories</h3><div className="monitor-recent">{visits.entries.map(entry=><button type="button" key={entry.repository} title={entry.repository} disabled={selected.includes(entry.repository)||selected.length>=MONITOR_LIMIT} aria-label={`Add ${entry.repository} to monitor`} onClick={()=>add(entry.repository)}><span aria-hidden="true">↶</span><span>{entry.repository}</span></button>)}</div></>}
-   <div className="monitor-setup-actions"><small>{selected.length} / {MONITOR_LIMIT}</small><button type="button" className="primary" disabled={!selected.length} onClick={()=>onStart(selected)}>Start monitoring</button></div>
+   <div className="monitor-setup-actions"><small>{selected.length} / {MONITOR_LIMIT}</small><button type="button" className="primary" disabled={!selected.length} onClick={()=>onStart(selected)}>Start split view</button></div>
   </section>
  </div>;
 }

@@ -73,7 +73,7 @@ npm run dev
 - [Product specification](docs/specification.md) · [Refresh and metadata](docs/auto-refresh-and-metadata.md) — implementation specifications.
 - [PWA](docs/pwa.md) · [Developer diagnostics](docs/developer-debug-mode.md) — installation, updates, recovery and local measurements.
 - [Recent repositories](docs/recent-repositories.md) — local suggestions, deletion and PAT changes.
-- [Monitor mode](docs/monitor-mode.md) — repository selection, fullscreen, shared refresh and mobile limits.
+- [Monitor mode](docs/monitor-mode.md) — repository selection, split view, shared refresh and mobile limits.
 
 Ideas and bug reports are welcome in [Issues](https://github.com/han41858/git-stream/issues).
 
