@@ -13,8 +13,9 @@ import {History} from './history';
 import {CommitInfoStore} from './CommitInfoStore';
 import {RefreshLoop} from './RefreshLoop';
 import {RefreshButton} from './RefreshButton';
-import type {Commit} from './model';
-import logo from '../assets/logo.png';
+import {lowercaseRepoInput,type Commit} from './model';
+import {lowercaseField} from './repoInput';
+import logo from '../assets/logo-320.png';
 import {emojify} from './emoji';
 import {requestActivity} from './requestActivity';
 import {readStoredToken,saveStoredToken} from './tokenStorage';
@@ -44,7 +45,7 @@ function App(){
  const loadingSpeed=activeRequests>8?'fast':activeRequests>4?'medium':'slow';
  const retrySeconds=useRetryCountdown(state.retryAt);
  const discoverySeconds=useRetryCountdown(state.discoveryRetryAt);
- const [input,setInput]=useState(new URLSearchParams(location.search).get('repo')||'');
+ const [input,setInput]=useState(lowercaseRepoInput(new URLSearchParams(location.search).get('repo')||''));
  const [savedToken]=useState(readStoredToken);
  const [appliedToken,setAppliedToken]=useState(savedToken.token),[authRevision,setAuthRevision]=useState(0),[autoRefresh,setAutoRefresh]=useState(true),[intervalChoice,setIntervalChoice]=useState<number|null>(null);
  const seconds=intervalChoice===30&&!appliedToken?300:intervalChoice??(appliedToken?60:300);
@@ -102,7 +103,7 @@ function App(){
   </main>
   <header className="topbar" ref={toolbarRef}>
    <a className="brand" href="./" aria-label="GitStream home"><img src={logo} alt="" width="36" height="36"/> GitStream</a>
-   <form className="repo-form" onSubmit={e=>{e.preventDefault();e.currentTarget.querySelector('input')?.blur();open();}}><div className="repo-input"><input ref={repoInputRef} aria-label="GitHub repository" enterKeyHint="go" value={input} onChange={e=>setInput(e.target.value)} placeholder="owner/repository"/>{input&&<button type="button" className="clear-repo" aria-label="Clear repository" title="Clear repository" onPointerDown={event=>event.preventDefault()} onClick={()=>{setInput('');repoInputRef.current?.focus();}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>}</div><button type="submit" className="primary explore-button" aria-label="Explore repository" title="Explore repository"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button></form>
+   <form className="repo-form" onSubmit={e=>{e.preventDefault();e.currentTarget.querySelector('input')?.blur();open();}}><div className="repo-input"><input ref={repoInputRef} aria-label="GitHub repository" enterKeyHint="go" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={input} onChange={e=>setInput(lowercaseField(e.currentTarget))} placeholder="owner/repository"/>{input&&<button type="button" className="clear-repo" aria-label="Clear repository" title="Clear repository" onPointerDown={event=>event.preventDefault()} onClick={()=>{setInput('');repoInputRef.current?.focus();}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>}</div><button type="submit" className="primary explore-button" aria-label="Explore repository" title="Explore repository"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg></button></form>
    <div className="view-controls"><div className="base-control"><BranchPicker history={history} state={state} onPicked={()=>{setSelected(null);}}/></div>
     <button className="direction-toggle" aria-label={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} title={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} aria-pressed={reverse} onClick={()=>{setSelected(null);void history.setDirection(!reverse);}}>{reverse?'↓ Newer':'↓ Older'}</button>
     <RefreshButton nextAt={refreshState.nextAt} interval={seconds*1000} sweeping={autoRefresh&&!!state.meta&&refreshState.lastSuccess!==null&&!refreshState.running&&refreshRetrySeconds===0} disabled={!state.meta||(!state.commits.length&&state.busy)||refreshState.running||refreshRetrySeconds>0} onRefresh={()=>void loop.refresh()}/>
