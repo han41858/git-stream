@@ -44,6 +44,22 @@ test('metadata starts as soon as repository metadata succeeds, before slow branc
   assert.equal(group.getSnapshot().running.size,1);branches.resolve(response([{name:'main',commit:{sha:'head'}}]));await until(()=>!group.getSnapshot().running.size);
  });
 });
+test('a URL can adopt the loading primary model and start the remaining repositories without duplicate metadata',async()=>{
+ await using(async({group,history,holds,paths})=>{
+  const first=deferred<Response>();holds.set('/repos/a/one',first);const opening=history.open('a/one');await until(()=>paths.includes('/repos/a/one'));
+  group.start(['a/one','b/two'],'');assert.equal(group.getSnapshot().entries[0].primary,true);assert.equal(group.getSnapshot().entries[0].history,history);
+  await until(()=>group.getSnapshot().entries[1].history.getSnapshot().commits.length===1);assert.equal(paths.filter(path=>path==='/repos/a/one').length,1);
+  first.resolve(response({default_branch:'main',private:false}));await opening;
+ });
+});
+test('an adopted primary URL failure retries through its original history without taking over metadata ownership',async()=>{
+ await using(async({group,history,holds,paths})=>{
+  const first=deferred<Response>();holds.set('/repos/a/one',first);const opening=history.open('a/one');await until(()=>paths.includes('/repos/a/one'));group.start(['a/one'],'');
+  first.resolve(response({},404));await opening;assert.ok(history.getSnapshot().error);holds.delete('/repos/a/one');
+  await group.refreshAll('auto');await until(()=>!group.getSnapshot().running.size);assert.ok(history.getSnapshot().meta);assert.equal(paths.filter(path=>path==='/repos/a/one').length,2);
+  assert.equal(paths.filter(path=>path==='/repos/a/one/tags').length,0);
+ });
+});
 test('a slow repository does not delay dispatch completion or the next refresh of faster repositories',async()=>{
  await using(async({group,paths,holds})=>{
   group.start(['a/one','b/two'],'');await until(()=>!group.getSnapshot().running.size);

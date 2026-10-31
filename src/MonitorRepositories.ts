@@ -10,6 +10,11 @@ export function normalizeMonitorRepositories(value:unknown):string[]{
  for(const item of value){if(typeof item!=='string')continue;try{names.add(monitorRepository(item));}catch{/* Ignore invalid saved addresses. */}if(names.size===MONITOR_LIMIT)break;}
  return [...names];
 }
+export function moveMonitorRepository(names:string[],repository:string,to:number):string[]{
+ const from=names.indexOf(repository);if(from<0||!Number.isInteger(to))return names;
+ const target=Math.max(0,Math.min(names.length-1,to));if(from===target)return names;
+ const next=[...names];next.splice(from,1);next.splice(target,0,repository);return next;
+}
 type Options={storage?:()=>StorageAccess;publicRepositories:()=>readonly string[];allowPrivate:()=>boolean;canWrite:()=>boolean};
 // Only normalized names are saved. Known public visits supply the privacy boundary;
 // unclassified names are conservatively removed when the applied PAT changes.

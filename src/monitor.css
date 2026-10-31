@@ -19,9 +19,11 @@
 .monitor-setup h2{font-size:17px;margin:0 0 8px;font-weight:500}.monitor-setup p{color:var(--muted);line-height:1.5}.monitor-setup h3{font-size:11px;font-weight:500;margin:18px 0 6px;color:var(--muted)}
 .monitor-selected{list-style:none;padding:0;margin:16px 0}.monitor-selected li{display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border);min-width:0}
 .monitor-selected li>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.monitor-selected button{flex-shrink:0;width:44px;height:44px;border:0;background:transparent;font-size:18px;padding:0}
+.monitor-selected li>span{flex:1;min-width:0}.monitor-selected .monitor-drag{display:grid;place-items:center;touch-action:none;cursor:grab;color:var(--muted)}.monitor-selected li[data-dragging=true]{background:var(--bg);user-select:none}.monitor-selected li[data-dragging=true] .monitor-drag{cursor:grabbing}.monitor-order-hint,.monitor-order-status{font-size:11px;color:var(--muted)}.monitor-order-status:empty{display:none}
 .monitor-add{display:flex;gap:8px}.monitor-add input{flex:1;min-width:0;padding:10px;border:1px solid var(--border);border-radius:7px;background:var(--bg)}.monitor-add button{min-height:44px}
 .monitor-setup .monitor-setup-error{color:var(--warning)}
 .monitor-recent{max-height:220px;overflow:auto;overscroll-behavior:contain}.monitor-recent button{display:flex;gap:8px;width:100%;min-height:44px;padding:8px 4px;border:0;background:transparent;text-align:left}.monitor-recent button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .monitor-setup-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px}.monitor-setup-actions small{color:var(--muted)}.monitor-setup-actions button{min-height:44px}
+.monitor-setup .monitor-share-note{font-size:11px;margin:14px 0 0}.monitor-copy-status{min-height:1.5em;font-size:11px;color:var(--muted)}.monitor-setup-actions{flex-wrap:wrap}
 @media(max-width:800px){.view-controls>.monitor-trigger{padding:5px;width:28px;height:30px}.monitor-setup{padding:20px}.monitor-add input{font-size:16px}.monitor-repository{left:4px;right:4px;font-size:10px}}
 @media(prefers-reduced-motion:reduce){.monitor-timer[aria-busy=true] .refresh-symbol{animation:none}}

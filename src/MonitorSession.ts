@@ -56,7 +56,7 @@ export class MonitorSession {
  start=(repositories:readonly string[],token:string)=>{
   this.stop();this.token=token;
   const entries=normalizeMonitorRepositories(repositories).map(repository=>{
-   const primary=this.history.getSnapshot().repo===repository&&!!this.history.getSnapshot().meta;
+   const current=this.history.getSnapshot(),primary=current.repo===repository&&(!!current.meta||current.busy);
    return {repository,primary,history:primary?this.history:new History(this.metadata),info:primary?this.info:new CommitInfoStore()};
   });
   if(!entries.length)return;
@@ -89,7 +89,7 @@ export class MonitorSession {
   if(this.state.retryAt)this.publish({retryAt:0});
   for(const entry of this.state.entries){
    const state=entry.history.getSnapshot();if(this.tasks.has(entry)||state.busy||entry.info.getSnapshot().busy)continue;
-   if(!state.meta){this.run(entry,()=>this.openEntry(entry));continue;}
+   if(!state.meta){this.run(entry,()=>entry.primary?entry.history.retry().then(()=>this.combined(entry)):this.openEntry(entry));continue;}
    this.run(entry,()=>entry.primary?this.refreshPrimary(kind):measureRefresh(kind,entry.history,entry.info,async cycle=>{
     const history=state.error?entry.history.retry().then(()=>this.combined(entry)):entry.history.refresh(cycle);
     const metadata=entry.info.getSnapshot().repo===entry.repository?entry.info.refresh(false,undefined,cycle):entry.info.open(entry.repository,this.token,cycle).then(()=>this.combined(entry));

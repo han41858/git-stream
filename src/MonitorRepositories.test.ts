@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {MonitorRepositories,MONITOR_REPOSITORIES_KEY,normalizeMonitorRepositories} from './MonitorRepositories';
+import {MonitorRepositories,MONITOR_REPOSITORIES_KEY,normalizeMonitorRepositories,moveMonitorRepository} from './MonitorRepositories';
 
 function setup(raw:unknown=['public/one','private/one','unknown/one']){
  const data=new Map([[MONITOR_REPOSITORIES_KEY,JSON.stringify(raw)],['unrelated','keep']]);
@@ -13,6 +13,17 @@ function setup(raw:unknown=['public/one','private/one','unknown/one']){
 test('monitor names normalize URLs and case, preserve order, deduplicate and stop at four',()=>{
  assert.deepEqual(normalizeMonitorRepositories(['https://github.com/OWNER/Repo.git','owner/repo',null,'bad input','other/two','other/three','other/four','other/five']),['owner/repo','other/two','other/three','other/four']);
  for(const value of [null,{},'bad'])assert.deepEqual(normalizeMonitorRepositories(value),[]);
+});
+test('moving monitor repositories changes order without mutating, duplicating or removing selections',()=>{
+ const names=['a/one','b/two','c/three','d/four'];
+ assert.deepEqual(moveMonitorRepository(names,'a/one',3),['b/two','c/three','d/four','a/one']);
+ assert.deepEqual(moveMonitorRepository(names,'d/four',0),['d/four','a/one','b/two','c/three']);
+ assert.deepEqual(names,['a/one','b/two','c/three','d/four']);
+});
+test('keyboard moves clamp at either end and invalid or unchanged moves preserve the same array',()=>{
+ const names=['a/one','b/two'];
+ for(const [repository,to] of [['a/one',-1],['b/two',5],['missing/repo',0],['a/one',NaN]] as const)assert.equal(moveMonitorRepository(names,repository,to),names);
+ assert.deepEqual(moveMonitorRepository(names,'a/one',999),['b/two','a/one']);
 });
 test('only names are persisted and a new instance restores the chosen order',()=>{
  const {store,data,options}=setup([]);store.set(['B/Two','A/One']);
