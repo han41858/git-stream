@@ -12,9 +12,9 @@ export function visibleHistorySources(frontiers:readonly HistoryFrontier[],posit
 }
 export function graphFrame(viewWidth:number,maxLane:number,mobile:boolean){
  const naturalWidth=GRAPH_ORIGIN+maxLane*LANE_SPACING+76;
- const branchWidth=mobile?viewWidth:Math.min(viewWidth/2,naturalWidth),messageX=mobile?viewWidth:branchWidth+16;
+ const gap=mobile?12:16,branchWidth=Math.min(viewWidth/2,naturalWidth),messageX=branchWidth+gap;
  const spacing=maxLane>0?Math.min(LANE_SPACING,Math.max(0,branchWidth-GRAPH_ORIGIN-18)/maxLane):LANE_SPACING;
- return {spacing,width:viewWidth,branchWidth,messageX,messageWidth:Math.min(viewWidth/2,Math.max(0,viewWidth-messageX-16))};
+ return {spacing,width:viewWidth,branchWidth,messageX,messageWidth:Math.min(viewWidth/2,Math.max(0,viewWidth-messageX-gap))};
 }
 export function branchDisplayNames(names:readonly string[]){
  const unique=[...new Set(names)],counts=new Map<string,number>();

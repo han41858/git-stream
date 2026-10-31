@@ -19,12 +19,20 @@ test('new offscreen boundaries wait for another scroll even if earlier rows were
  assert.deepEqual(visibleHistorySources(frontiers,positions,{...view,top:6000}),[]);
 });
 
-test('mobile frames fit every lane inside the viewport without imposing a minimum spacing',()=>{
+test('mobile frames fit every lane inside the left half without imposing a minimum spacing',()=>{
  for(const width of [280,320,390,800])for(const maxLane of [0,1,8,40,500]){
   const frame=graphFrame(width,maxLane,true);
-  assert.equal(frame.width,width);assert.ok(frame.spacing>0&&frame.spacing<=34);assert.ok(GRAPH_ORIGIN+maxLane*frame.spacing<=width-18+1e-9);
+  assert.equal(frame.width,width);assert.ok(frame.branchWidth<=width/2);assert.ok(frame.spacing>0&&frame.spacing<=34);assert.ok(GRAPH_ORIGIN+maxLane*frame.spacing<=frame.branchWidth-18+1e-9);
  }
  assert.ok(graphFrame(320,500,true).spacing<1);
+});
+test('mobile message columns use at most half the screen, retain readable space and stay clear of branches',()=>{
+ for(const width of [280,320,390,430,800])for(const maxLane of [0,1,8,40,500]){
+  const frame=graphFrame(width,maxLane,true);
+  assert.ok(frame.messageX>frame.branchWidth);
+  assert.ok(frame.messageWidth>=width*.4&&frame.messageWidth<=width/2);
+  assert.ok(frame.messageX+frame.messageWidth<=width-12);
+ }
 });
 test('sparse mobile and desktop graphs retain their usual spacing',()=>{
  assert.equal(graphFrame(390,3,true).spacing,34);
