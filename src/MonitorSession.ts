@@ -38,10 +38,19 @@ export class MonitorSession {
  }
  private openEntry(entry:MonitorEntry){
   return measureRefresh('initial',entry.history,entry.info,async cycle=>{
-   await entry.history.open(entry.repository,this.token,cycle);
-   if(!this.state.active||!this.state.entries.includes(entry)){if(cycle)cycle.cancelled=true;return {};}
-   if(entry.history.getSnapshot().meta&&this.canRequest())await entry.info.open(entry.repository,this.token,cycle);
-   return this.combined(entry);
+   let metadata:Promise<void>|undefined;
+   // Match the single-repository flow: initialize metadata before commits arrive,
+   // so opening its store cannot erase the renderer's first visible-SHA watch.
+   const openMetadata=()=>{
+    if(metadata||!entry.history.getSnapshot().meta||!this.state.active||!this.state.entries.includes(entry)||!this.canRequest())return;
+    metadata=entry.info.open(entry.repository,this.token,cycle);
+   };
+   const unsubscribe=entry.history.subscribe(openMetadata);
+   try{
+    await entry.history.open(entry.repository,this.token,cycle);
+    if(!this.state.active||!this.state.entries.includes(entry)){if(cycle)cycle.cancelled=true;return {};}
+    await metadata;return this.combined(entry);
+   }finally{unsubscribe();}
   });
  }
  start=(repositories:readonly string[],token:string)=>{

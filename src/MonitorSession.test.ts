@@ -36,6 +36,14 @@ test('one to four independent models reuse the already opened primary repository
   assert.equal(new Set(group.getSnapshot().entries.map(entry=>entry.history)).size,4);
  });
 });
+test('metadata starts as soon as repository metadata succeeds, before slow branch or commit loading completes',async()=>{
+ await using(async({group,holds,paths})=>{
+  const branches=deferred<Response>();holds.set('/repos/b/two/branches',branches);group.start(['b/two'],'');
+  await until(()=>paths.includes('/repos/b/two/actions/runs'));
+  const entry=group.getSnapshot().entries[0];assert.equal(entry.info.getSnapshot().repo,'b/two');assert.equal(entry.history.getSnapshot().commits.length,0);
+  assert.equal(group.getSnapshot().running.size,1);branches.resolve(response([{name:'main',commit:{sha:'head'}}]));await until(()=>!group.getSnapshot().running.size);
+ });
+});
 test('a slow repository does not delay dispatch completion or the next refresh of faster repositories',async()=>{
  await using(async({group,paths,holds})=>{
   group.start(['a/one','b/two'],'');await until(()=>!group.getSnapshot().running.size);

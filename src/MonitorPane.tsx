@@ -16,7 +16,7 @@ export const MonitorPane=memo(function MonitorPane({entry,order,theme,session,re
  const state=useSyncExternalStore(entry.history.subscribe,entry.history.getSnapshot),extras=useSyncExternalStore(entry.info.subscribe,entry.info.getSnapshot);
  const [selected,setSelected]=useState<Commit|null>(null),pane=useRef<HTMLElement>(null),details=useRef<HTMLElement>(null);
  const loadMore=useCallback((sources?:string[])=>{if(session.canRequest())void entry.history.loadMore(sources);},[entry,session]);
- const watch=useCallback((shas:string[])=>{if(!limited&&session.canRequest())entry.info.watch(shas);},[entry,session,limited]);
+ const watch=useCallback((shas:string[])=>{if(!limited&&session.canRequest())entry.info.watch(shas);},[entry,session,limited,extras.repo]);
  useEffect(()=>{if(extras.repo===entry.repository){if(selected&&!limited)void entry.info.inspect(selected.sha);else if(!selected)entry.info.clearSelection();}},[entry,selected?.sha,extras.repo,limited]);
  useEffect(()=>{
   if(!selected)return;
