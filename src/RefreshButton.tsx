@@ -11,9 +11,9 @@ export function RefreshButton({nextAt,interval,sweeping,disabled,onRefresh}:Prop
   const {duration,delay,offset}=refreshProgress(nextAt,interval,Date.now());
   return {animationDuration:`${duration}ms`,animationDelay:`${delay}ms`,strokeDashoffset:offset} as CSSProperties;
  },[nextAt,interval,sweeping]);
- return <button className={`refresh-button${sweeping?' is-sweeping':''}`} aria-label="Refresh repository" title="Refresh repository" disabled={disabled} onClick={onRefresh}>
+ return <button className="refresh-button" aria-label="Refresh repository" title="Refresh repository" disabled={disabled} onClick={onRefresh}>
   <svg className="refresh-fill" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-   {sweeping&&<circle key={`${nextAt}:${interval}`} cx="50" cy="50" r="50" pathLength="100" transform="rotate(-90 50 50)" fill="none" stroke="white" strokeWidth="100" strokeDasharray="100" style={style}/>}
+   {sweeping&&<circle key={`${nextAt}:${interval}`} cx="50" cy="50" r="50" pathLength="100" transform="rotate(-90 50 50)" fill="none" strokeWidth="100" strokeDasharray="100" style={style}/>}
   </svg>
   <span className="refresh-symbol" aria-hidden="true">↻</span>
  </button>;
