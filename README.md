@@ -35,6 +35,7 @@
 
 - **Follow branches and merges** in an interactive, vertical Git graph.
 - **Stay current** with automatic updates that preserve your place while reading.
+- **Monitor up to four repositories** side by side, reorder your selection and share the view with a link.
 - **See the context** with tags, releases and GitHub Actions status beside commits.
 - **Explore public and private repositories**, with optional GitHub token access.
 - **Use it anywhere** on desktop or mobile, or install it as a PWA.
@@ -71,6 +72,8 @@ npm run dev
 - [Technical guide](docs/technical-guide.md) — usage, architecture, API behavior, tests, deployment and releases.
 - [Product specification](docs/specification.md) · [Refresh and metadata](docs/auto-refresh-and-metadata.md) — implementation specifications.
 - [PWA](docs/pwa.md) · [Developer diagnostics](docs/developer-debug-mode.md) — installation, updates, recovery and local measurements.
+- [Recent repositories](docs/recent-repositories.md) — local suggestions, deletion and PAT changes.
+- [Monitor mode](docs/monitor-mode.md) — selection and ordering, shared URLs, split view, refresh and mobile limits.
 
 Ideas and bug reports are welcome in [Issues](https://github.com/han41858/git-stream/issues).
 

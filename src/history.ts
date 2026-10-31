@@ -5,13 +5,14 @@ import {RequestPool} from './RequestPool';
 import {GitHubReader} from './GitHubReader';
 import {parseRepo,commitTime, type Branch, type Commit, type HistoryFrontier} from './model';
 
-type Meta = {default_branch:string; description:string|null; stargazers_count:number};
+type Meta = {default_branch:string; description:string|null; stargazers_count:number;private?:boolean};
 export type HistorySnapshot = {repo:string; refreshVersion:number; baseHead:string; refreshError:string; refreshNotice:string; meta:Meta|null; base:string; reverse:boolean; discoveryError:string; discoveryRetryAt:number|null; commits:Commit[]; branches:Branch[]; busy:boolean; error:string; retryAt:number|null; more:boolean; moreBranches:boolean; frontiers:HistoryFrontier[]; pendingSources:string[]; ranking:{counts:Record<string,number>; scanned:number; busy:boolean; complete:boolean; error:string; retryAt:number|null}; branchSearch:{busy:boolean; error:string}};
 const empty = ():HistorySnapshot => ({repo:'',refreshVersion:0,baseHead:'',refreshError:'',refreshNotice:'',meta:null,base:'',reverse:false,discoveryError:'',discoveryRetryAt:null,commits:[],branches:[],busy:false,error:'',retryAt:null,more:false,moreBranches:false,frontiers:[],pendingSources:[],ranking:{counts:{},scanned:0,busy:false,complete:false,error:'',retryAt:null},branchSearch:{busy:false,error:''}});
 
 // Ref names never drive history loading. Repository activity supplies independent
 // live heads that cannot be discovered by following the selected head's parents.
 export class History {
+ constructor(private readonly onRepositoryMetadata?:(repository:string,isPrivate:boolean,visit:boolean)=>void){}
  private snapshot=empty();
  private debugInitial?:DebugCycle;
  private refreshReader:GitHubReader|null=null;
@@ -222,6 +223,7 @@ export class History {
   const signal=reader.controller.signal,repo=this.snapshot.repo;debug.bind(signal,cycle);
   try{
    const meta=(await reader.get<Meta>(`/repos/${repo}`)).data;signal.throwIfAborted();
+   if(typeof meta.private==='boolean')this.onRepositoryMetadata?.(repo,meta.private,false);
    const scan=this.branchScan??{page:1,refs:new Map<string,Branch>()};this.branchScan=scan;
    let complete=false;
    for(let count=0;count<3;count++){
@@ -269,7 +271,9 @@ export class History {
   this.clear();this.debugInitial=cycle;this.token=token;this.refsNext=true;this.publish({repo});
   await this.run(async signal=>{
    const {data:meta}=await github<Meta>(`/repos/${repo}`,this.token,signal);
-   this.current(signal);this.publish({meta,base:meta.default_branch});
+   this.current(signal);
+   if(typeof meta.private==='boolean')this.onRepositoryMetadata?.(repo,meta.private,true);
+   this.publish({meta,base:meta.default_branch});
    await this.fetchRefs(signal);
    for(const name of new Set(['main','master',meta.default_branch])){
     if(this.snapshot.branches.some(b=>b.name===name))continue;

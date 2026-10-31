@@ -70,6 +70,15 @@ test('sparse mobile and desktop graphs retain their usual spacing',()=>{
  assert.equal(graphFrame(390,3,true).spacing,34);
  assert.equal(graphFrame(1440,2,false).spacing,34);
 });
+test('split-column widths follow the same responsive message and lane-spacing policy as a single graph',()=>{
+ const cases:[number,number,boolean][]=[[79,1,false],[97,1,false],[107,1,false],[195,2,true],[195,3,false],[320,7,true],[320,8,false],[390,10,true],[390,11,false],[430,12,true],[430,13,false],[800,27,true],[800,28,false],[801,100,true],[960,100,true],[1920,100,true]];
+ for(const [width,maxLane,visible] of cases){
+  const frame=graphFrame(width,maxLane,width<=800);assert.equal(frame.showMessages,visible,`${width}px, lane ${maxLane}`);
+  if(visible){assert.ok(frame.branchWidth<=width/2);assert.ok(frame.messageWidth>0&&frame.messageWidth<=width/2);if(width<=800)assert.ok(frame.spacing>=12);}
+  else{assert.equal(frame.branchWidth,width);assert.equal(frame.messageWidth,0);}
+  assert.ok(frame.spacing>0&&frame.spacing<=34);assert.ok(GRAPH_ORIGIN+maxLane*frame.spacing<=frame.branchWidth-18+1e-9);
+ }
+});
 test('desktop branch width grows with its content up to 50 percent and messages stay capped at 50 percent',()=>{
  for(const width of [801,900,1440,2560])for(const maxLane of [0,1,8,40,500]){
   const frame=graphFrame(width,maxLane,false);
