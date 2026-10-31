@@ -70,6 +70,12 @@ test('sparse mobile and desktop graphs retain their usual spacing',()=>{
  assert.equal(graphFrame(390,3,true).spacing,34);
  assert.equal(graphFrame(1440,2,false).spacing,34);
 });
+test('monitor columns hide text and use their complete width even on narrow portrait splits',()=>{
+ for(const width of [79,97,107,195,320,960,1920])for(const maxLane of [0,1,8,100])for(const mobile of [false,true]){
+  const frame=graphFrame(width,maxLane,mobile,true);assert.equal(frame.showMessages,false);assert.equal(frame.branchWidth,width);assert.equal(frame.messageWidth,0);
+  assert.ok(frame.spacing>0&&frame.spacing<=34);assert.ok(GRAPH_ORIGIN+maxLane*frame.spacing<=width-18+1e-9);
+ }
+});
 test('desktop branch width grows with its content up to 50 percent and messages stay capped at 50 percent',()=>{
  for(const width of [801,900,1440,2560])for(const maxLane of [0,1,8,40,500]){
   const frame=graphFrame(width,maxLane,false);
