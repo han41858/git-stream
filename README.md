@@ -15,7 +15,7 @@ npm run build
 
 Deploy `dist/` to any static host. Repository selection uses `?repo=owner%2Frepo` and survives refresh without server rewrites.
 
-The bottom of Options shows the running app's build time with a `Build` prefix, using the browser's local date format, clock convention and time zone. Vite embeds one UTC timestamp at build time; every device displays that same instant in its own format, through the minute, without seconds or a time zone label. It stays fixed offline or across reloads of the same build, and the menu expands within the available viewport to keep it on one line. Unusually long values use an ellipsis, with the full localized timestamp available in the time element’s tooltip. A cached PWA keeps its previous build time until an app update is applied. Rebuilding the same commit changes the timestamp and bundle hash, so it can trigger a PWA update. The development server shows `Development`.
+The bottom of Options shows the running app's build time with a `Build` prefix, using the browser's local date format and time zone with a consistent 24-hour `HH:mm` time. Vite embeds one UTC timestamp at build time; every device displays that same instant with its local date and zero-padded 24-hour time, without AM/PM, seconds or a time zone label. It stays fixed offline or across reloads of the same build, and the menu expands within the available viewport to keep it on one line. Unusually long values use an ellipsis, with the full localized timestamp available in the time element’s tooltip. A cached PWA keeps its previous build time until an app update is applied. Rebuilding the same commit changes the timestamp and bundle hash, so it can trigger a PWA update. The development server shows `Development`.
 
 ## Use
 

@@ -22,10 +22,12 @@ import {TokenPermissions} from './TokenPermissions';
 import './style.css';
 
 const DEMO_REPO='han41858/git-stream';
-const BUILD_DATE=import.meta.env.DEV?'':new Intl.DateTimeFormat(undefined,{
- year:'numeric',month:'2-digit',day:'2-digit',
- hour:'2-digit',minute:'2-digit',
-}).format(new Date(__BUILD_TIME__));
+const BUILD_DATE=import.meta.env.DEV?'':(()=>{
+ const builtAt=new Date(__BUILD_TIME__);
+ const date=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit'}).format(builtAt);
+ const time=`${String(builtAt.getHours()).padStart(2,'0')}:${String(builtAt.getMinutes()).padStart(2,'0')}`;
+ return `${date} ${time}`;
+})();
 
 function App(){
  const [history]=useState(()=>new History());
