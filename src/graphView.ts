@@ -10,12 +10,12 @@ export function visibleHistorySources(frontiers:readonly HistoryFrontier[],posit
  }
  return [...sources];
 }
-export function graphFrame(viewWidth:number,maxLane:number,mobile:boolean,compact=false){
+export function graphFrame(viewWidth:number,maxLane:number,mobile:boolean){
  const naturalWidth=GRAPH_ORIGIN+maxLane*LANE_SPACING+76;
  const laneSpacing=(available:number)=>maxLane>0?Math.min(LANE_SPACING,Math.max(0,available-GRAPH_ORIGIN-18)/maxLane):LANE_SPACING;
  const gap=mobile?12:16,compactWidth=Math.min(viewWidth/2,naturalWidth);
  // Keep mobile lanes at least 12px apart before reserving space for messages.
- const showMessages=!compact&&(!mobile||laneSpacing(compactWidth)>=12);
+ const showMessages=!mobile||laneSpacing(compactWidth)>=12;
  const branchWidth=showMessages?compactWidth:viewWidth,messageX=showMessages?branchWidth+gap:viewWidth;
  return {spacing:laneSpacing(branchWidth),width:viewWidth,branchWidth,showMessages,messageX,messageWidth:showMessages?Math.min(viewWidth/2,Math.max(0,viewWidth-messageX-gap)):0};
 }

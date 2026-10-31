@@ -24,4 +24,5 @@
 .monitor-recent{max-height:220px;overflow:auto;overscroll-behavior:contain}.monitor-recent button{display:flex;gap:8px;width:100%;min-height:44px;padding:8px 4px;border:0;background:transparent;text-align:left}.monitor-recent button span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .monitor-setup-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px}.monitor-setup-actions small{color:var(--muted)}.monitor-setup-actions button{min-height:44px}
 .monitor-setup .monitor-share-note{font-size:11px;margin:14px 0 0}.monitor-copy-status{min-height:1.5em;font-size:11px;color:var(--muted)}.monitor-setup-actions{flex-wrap:wrap}
+.monitor-copy{min-width:90px}.monitor-copy[data-state=copied]{color:var(--accent);border-color:var(--accent)}.monitor-copy[data-state=failed]{color:var(--warning);border-color:var(--warning)}
 @media(max-width:800px){.view-controls>.monitor-trigger{padding:5px;width:28px;height:30px}.monitor-setup{padding:20px}.monitor-add input{font-size:16px}.monitor-repository{left:4px;right:4px;font-size:10px}}

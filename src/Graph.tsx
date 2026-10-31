@@ -9,18 +9,20 @@ import {emojify} from './emoji';
 import {scrollPosition,scrollAnchor} from './scrollPosition';
 import {actionText,attempt,runStatus,runElapsed,type CommitInfo} from './CommitInfo';
 import {graphFrame,branchDisplayNames,branchLabelText,visibleHistorySources,GRAPH_ORIGIN} from './graphView';
-type Props={active?:boolean;compact?:boolean;label?:string;theme:string;commits:Commit[];branches:Branch[];branch:string;reverse:boolean;onSelect:(c:Commit)=>void;selected:string;hasMore:boolean;loading:boolean;onLoadMore:(sources?:string[])=>void;frontiers:HistoryFrontier[];pendingSources:string[];topInset:number;baseHead?:string;refreshVersion?:number;info?:ReadonlyMap<string,CommitInfo>;onVisible?:(shas:string[])=>void};
-export function Graph({active=true,compact=false,label,theme,commits,branches,branch,reverse,onSelect,selected,hasMore,loading,onLoadMore,frontiers,pendingSources,topInset,baseHead,refreshVersion=0,info,onVisible}:Props){
+type Props={active?:boolean;containerResponsive?:boolean;label?:string;theme:string;commits:Commit[];branches:Branch[];branch:string;reverse:boolean;onSelect:(c:Commit)=>void;selected:string;hasMore:boolean;loading:boolean;onLoadMore:(sources?:string[])=>void;frontiers:HistoryFrontier[];pendingSources:string[];topInset:number;baseHead?:string;refreshVersion?:number;info?:ReadonlyMap<string,CommitInfo>;onVisible?:(shas:string[])=>void};
+export function Graph({active=true,containerResponsive=false,label,theme,commits,branches,branch,reverse,onSelect,selected,hasMore,loading,onLoadMore,frontiers,pendingSources,topInset,baseHead,refreshVersion=0,info,onVisible}:Props){
  const container=useRef<HTMLDivElement>(null),canvas=useRef<HTMLCanvasElement>(null),prior=useRef(new Map<string,number>());
  const priorColors=useRef(emptyGraphColors());
  const captureFrontiers=useRef<()=>void>(()=>{});
  const badgeHits=useRef<{x:number;y:number;width:number;height:number;names:string[]}[]>([]);
- const [view,setView]=useState({top:0,width:window.innerWidth,height:window.innerHeight});
+ const [view,setView]=useState({top:0,width:containerResponsive?0:window.innerWidth,height:window.innerHeight});
  const [documentVisible,setDocumentVisible]=useState(()=>!document.hidden);
  const pageVisible=active&&documentVisible;
  useEffect(()=>{const update=()=>setDocumentVisible(!document.hidden);document.addEventListener('visibilitychange',update);return()=>document.removeEventListener('visibilitychange',update);},[]);
- const [mobile,setMobile]=useState(()=>window.matchMedia('(max-width:800px)').matches);
- useEffect(()=>{const media=window.matchMedia('(max-width:800px)');const update=()=>setMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
+ const [screenMobile,setScreenMobile]=useState(()=>window.matchMedia('(max-width:800px)').matches);
+ useEffect(()=>{const media=window.matchMedia('(max-width:800px)');const update=()=>setScreenMobile(media.matches);update();media.addEventListener('change',update);return()=>media.removeEventListener('change',update);},[]);
+ // Split columns use their measured width with the existing responsive rules.
+ const mobile=containerResponsive?view.width<=800:screenMobile;
  const head=baseHead||branches.find(b=>b.name===branch)?.commit.sha;
  const data=useMemo(()=>measuredLayout(commits,prior.current,head),[commits,head]);
  useEffect(()=>{prior.current=data.lanes;},[data]);
@@ -30,7 +32,7 @@ export function Graph({active=true,compact=false,label,theme,commits,branches,br
  const months=useMemo(()=>monthMarkers(ordered,data.spine),[ordered,data,reverse]);
  const padding=topInset;
  const maxLane=Array.from(data.lanes.values()).reduce((a,b)=>Math.max(a,b),0);
- const {spacing,width,branchWidth,showMessages,messageX,messageWidth}=graphFrame(view.width,maxLane,mobile,compact),height=Math.max(view.height,ordered.length*ROW+padding+80);
+ const {spacing,width,branchWidth,showMessages,messageX,messageWidth}=graphFrame(view.width,maxLane,mobile),height=Math.max(view.height,ordered.length*ROW+padding+80);
  const positions=useMemo(()=>new Map(ordered.map((c,i)=>[c.sha,{x:GRAPH_ORIGIN+(data.lanes.get(c.sha)||0)*spacing,y:i*ROW+padding}])) ,[ordered,data,padding,spacing]);
  const pendingActions=useMemo(()=>{
   if(!pageVisible||!info)return [];
@@ -73,7 +75,7 @@ export function Graph({active=true,compact=false,label,theme,commits,branches,br
   const update=()=>{const el=container.current;if(media.matches&&followingLatest.current!==null&&el){cancelFollowFrame();const top=followingLatest.current;followingLatest.current=null;el.scrollTo({top,behavior:'auto'});scrollTop.current=el.scrollTop;setView(v=>({...v,top:el.scrollTop}));}};
   media.addEventListener('change',update);return()=>media.removeEventListener('change',update);
  },[]);
- useLayoutEffect(()=>{const el=container.current!;const update=()=>{const {clientWidth:width,clientHeight:height}=el;setView(v=>v.width===width&&v.height===height?v:{...v,width,height});};update();const observer=new ResizeObserver(update);observer.observe(el);return()=>observer.disconnect();},[]);
+ useLayoutEffect(()=>{const el=container.current!;const update=()=>{const {clientWidth:width,clientHeight:height}=el;setView(v=>v.width===width&&v.height===height?v:{...v,width,height});};update();const observer=new ResizeObserver(update);observer.observe(el);return()=>observer.disconnect();},[containerResponsive]);
  useLayoutEffect(()=>{container.current!.scrollLeft=0;},[width,mobile]);
  useEffect(()=>{
   if(!onVisible||!pageVisible)return;const first=Math.max(0,Math.ceil((view.top-20)/ROW)),last=Math.min(ordered.length,Math.floor((view.top+view.height-48-padding)/ROW)+1);
@@ -139,23 +141,23 @@ export function Graph({active=true,compact=false,label,theme,commits,branches,br
    ctx.font='13px system-ui';ctx.textAlign='center';for(const icon of icons(c.sha,p.x))ctx.fillText(icon.text,icon.x,p.y+4);ctx.textAlign='left';
    ctx.fillStyle=text;
    if(showMessages){ctx.font=`${mobile?12:13}px system-ui`;ctx.fillText(fitMessage(emojify(c.commit.message.split('\n')[0])),messageX,p.y+(mobile?4:-3));}
-   if(!mobile&&!compact){ctx.globalAlpha=0.5;ctx.font='11px monospace';ctx.fillText(fitMessage(`${c.sha.slice(0,7)}  ${c.commit.author?.name||'Unknown author'}`),messageX,p.y+9);}
+   if(!mobile){ctx.globalAlpha=0.5;ctx.font='11px monospace';ctx.fillText(fitMessage(`${c.sha.slice(0,7)}  ${c.commit.author?.name||'Unknown author'}`),messageX,p.y+9);}
   }
-  ctx.globalAlpha=1;ctx.font=`${mobile||compact?10:11}px system-ui`;
-  const badgeHeight=mobile||compact?18:20,maxTextWidth=Math.min(mobile||compact?Math.min(116,view.width*.36):190,branchWidth-16)-12,cache=new Map<string,{text:string;width:number}>();
-  const badge=(names:string[])=>{const key=names.join('\0'),old=cache.get(key);if(old)return old;let text='…';for(let limit=mobile||compact?18:28;limit>=3;limit--){text=branchLabelText(names,displayNames,limit);if(ctx.measureText(text).width<=maxTextWidth)break;}const value={text,width:ctx.measureText(text).width+12};cache.set(key,value);return value;};
+  ctx.globalAlpha=1;ctx.font=`${mobile?10:11}px system-ui`;
+  const badgeHeight=mobile?18:20,maxTextWidth=Math.min(mobile?Math.min(116,view.width*.36):190,branchWidth-16)-12,cache=new Map<string,{text:string;width:number}>();
+  const badge=(names:string[])=>{const key=names.join('\0'),old=cache.get(key);if(old)return old;let text='…';for(let limit=mobile?18:28;limit>=3;limit--){text=branchLabelText(names,displayNames,limit);if(ctx.measureText(text).width<=maxTextWidth)break;}const value={text,width:ctx.measureText(text).width+12};cache.set(key,value);return value;};
   const hits:typeof badgeHits.current=[];
   for(const label of visibleBranchLabels(tracks,view.top+padding-20,view.top+view.height-48,left,left+branchWidth,names=>badge(names).width,badgeHeight)){
    const {text:name,width:boxWidth}=badge(label.names);
    const x=label.boxX!,y=label.boxY!;
    const color=colors[(label.color??label.lane)%colors.length];
    ctx.fillStyle=surface;ctx.beginPath();ctx.roundRect(x,y,boxWidth,badgeHeight,4);ctx.fill();
-   ctx.globalAlpha=theme==='light'?0.1:0.16;ctx.fillStyle=color;ctx.fill();ctx.globalAlpha=1;ctx.fillStyle=color;ctx.fillText(name,x+6,y+(mobile||compact?12:14));
+   ctx.globalAlpha=theme==='light'?0.1:0.16;ctx.fillStyle=color;ctx.fill();ctx.globalAlpha=1;ctx.fillStyle=color;ctx.fillText(name,x+6,y+(mobile?12:14));
    hits.push({x,y,width:boxWidth,height:badgeHeight,names:label.names});
   }
   badgeHits.current=hits;
   if(started!==undefined)debug.render(started,commits,{loaded:commits.length,visible,drawn,branches:branches.length,lanes:maxLane+1});
- },[theme,months,tones,tracks,padding,data,ordered,positions,branches,width,view,selected,mobile,branchWidth,showMessages,messageX,messageWidth,reverse,info,displayNames,compact,pageVisible]);
+ },[theme,months,tones,tracks,padding,data,ordered,positions,branches,width,view,selected,mobile,branchWidth,showMessages,messageX,messageWidth,reverse,info,displayNames,pageVisible]);
  function badgeAt(clientX:number,clientY:number){const el=container.current!,rect=el.getBoundingClientRect(),x=clientX-rect.left+el.scrollLeft,y=clientY-rect.top+el.scrollTop;return badgeHits.current.find(label=>x>=label.x&&x<=label.x+label.width&&y>=label.y&&y<=label.y+label.height);}
  function pick(clientX:number,clientY:number){
   const el=container.current!,rect=el.getBoundingClientRect();const x=clientX-rect.left+el.scrollLeft,y=clientY-rect.top+el.scrollTop;

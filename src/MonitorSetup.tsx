@@ -7,24 +7,33 @@ import {monitorShareURL} from './repositoryLocation';
 export function MonitorSetup({current,recent,saved,initial,onStart,onClose}:{current:string;recent:RecentRepositories;saved:MonitorRepositories;initial?:readonly string[];onStart:(repositories:string[])=>void;onClose:()=>void}){
  const visits=useSyncExternalStore(recent.subscribe,recent.getSnapshot);
  const [selected,setSelected]=useState(()=>{const names=initial??saved.getSnapshot();return normalizeMonitorRepositories(names.includes(current)?names:[current,...names]);});
- const [input,setInput]=useState(''),[error,setError]=useState(''),[copyStatus,setCopyStatus]=useState('');
+ const [input,setInput]=useState(''),[error,setError]=useState('');
+ const [copyStatus,setCopyStatus]=useState<'idle'|'copying'|'copied'|'failed'>('idle');
+ const copySequence=useRef(0);
  const [dragging,setDragging]=useState(''),[orderStatus,setOrderStatus]=useState('');
  const dialog=useRef<HTMLElement>(null),field=useRef<HTMLInputElement>(null),list=useRef<HTMLOListElement>(null);
  const drag=useRef<{repository:string;pointerId:number;index:number}|null>(null);
  const available=selected.length<MONITOR_LIMIT?visits.entries.filter(entry=>!selected.includes(entry.repository)):[];
  useEffect(()=>{dialog.current?.focus();},[]);
+ useEffect(()=>()=>{copySequence.current++;},[]);
+ useEffect(()=>{
+  if(copyStatus!=='copied'&&copyStatus!=='failed')return;
+  const timer=window.setTimeout(()=>setCopyStatus('idle'),2000);return()=>window.clearTimeout(timer);
+ },[copyStatus]);
+ function resetCopy(){copySequence.current++;setCopyStatus('idle');}
  function add(value:string){
   let repository:string;try{repository=monitorRepository(value);}catch{setError('Enter a GitHub URL or owner/repository.');return;}
   if(selected.includes(repository)){setError('Repository already selected.');return;}
   if(selected.length>=MONITOR_LIMIT){setError(`Select up to ${MONITOR_LIMIT} repositories.`);return;}
-  setSelected(names=>[...names,repository]);setInput('');setError('');setCopyStatus('');setOrderStatus('');
+  setSelected(names=>[...names,repository]);setInput('');setError('');resetCopy();setOrderStatus('');
  }
  async function copyLink(){
-  try{await navigator.clipboard.writeText(monitorShareURL(location.href,selected));setCopyStatus('Link copied.');}
-  catch{setCopyStatus('Could not copy link.');}
+  const sequence=++copySequence.current;setCopyStatus('copying');
+  try{await navigator.clipboard.writeText(monitorShareURL(location.href,selected));if(sequence===copySequence.current)setCopyStatus('copied');}
+  catch{if(sequence===copySequence.current)setCopyStatus('failed');}
  }
  function move(repository:string,index:number){
-  setSelected(names=>moveMonitorRepository(names,repository,index));setCopyStatus('');
+  setSelected(names=>moveMonitorRepository(names,repository,index));resetCopy();
  }
  function finishDrag(event:PointerEvent<HTMLOListElement>){
   const current=drag.current;if(!current||current.pointerId!==event.pointerId)return;drag.current=null;setDragging('');
@@ -58,7 +67,7 @@ export function MonitorSetup({current,recent,saved,initial,onStart,onClose}:{cur
       if(event.key!=='ArrowUp'&&event.key!=='ArrowDown')return;event.preventDefault();const target=Math.max(0,Math.min(selected.length-1,index+(event.key==='ArrowDown'?1:-1)));
       move(repository,target);setOrderStatus(`${repository} moved to position ${target+1} of ${selected.length}.`);
      }}><svg width="16" height="18" viewBox="0 0 16 18" fill="currentColor" aria-hidden="true">{[4,9,14].flatMap(y=>[5,11].map(x=><circle key={`${x}-${y}`} cx={x} cy={y} r="1.3"/>))}</svg></button>
-     <span title={repository}>{repository}</span><button type="button" aria-label={`Remove ${repository} from monitor`} onClick={()=>{setSelected(names=>names.filter(name=>name!==repository));setError('');setCopyStatus('');setOrderStatus('');}}>×</button>
+     <span title={repository}>{repository}</span><button type="button" aria-label={`Remove ${repository} from monitor`} onClick={()=>{setSelected(names=>names.filter(name=>name!==repository));setError('');resetCopy();setOrderStatus('');}}>×</button>
     </li>)}
    </ol>
    <small id="monitor-order-hint" className="monitor-order-hint">Drag handles or use ↑/↓ to reorder.</small><div className="monitor-order-status" role="status" aria-live="polite">{orderStatus}</div>
@@ -69,8 +78,8 @@ export function MonitorSetup({current,recent,saved,initial,onStart,onClose}:{cur
    {error&&<p className="monitor-setup-error" role="alert">{error}</p>}
    {available.length>0&&<><h3>Recent repositories</h3><div className="monitor-recent">{available.map(entry=><button type="button" key={entry.repository} title={entry.repository} aria-label={`Add ${entry.repository} to monitor`} onClick={()=>add(entry.repository)}><span>{entry.repository}</span></button>)}</div></>}
    <p className="monitor-share-note">Shared links include repository names, including private ones. Share with care.</p>
-   <div className="monitor-copy-status" role="status" aria-live="polite">{copyStatus}</div>
-   <div className="monitor-setup-actions"><small>{selected.length} / {MONITOR_LIMIT}</small><button type="button" disabled={!selected.length} onClick={()=>void copyLink()}>Copy link</button><button type="button" className="primary" disabled={!selected.length} onClick={()=>onStart(selected)}>Start split view</button></div>
+   <div className="monitor-copy-status" role="status" aria-live="polite">{{idle:'',copying:'',copied:'Link copied.',failed:'Could not copy link.'}[copyStatus]}</div>
+   <div className="monitor-setup-actions"><small>{selected.length} / {MONITOR_LIMIT}</small><button type="button" className="monitor-copy" data-state={copyStatus} aria-label="Copy link" aria-busy={copyStatus==='copying'} disabled={!selected.length||copyStatus==='copying'} onClick={()=>void copyLink()}>{{idle:'Copy link',copying:'Copy link',copied:'Copied!',failed:'Copy failed'}[copyStatus]}</button><button type="button" className="primary" disabled={!selected.length} onClick={()=>onStart(selected)}>Start split view</button></div>
   </section>
  </div>;
 }
