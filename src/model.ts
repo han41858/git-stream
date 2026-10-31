@@ -56,4 +56,6 @@ export function layout(commits: Commit[], previous = new Map<string,number>(), b
   return {ordered,lanes,spine};
 }
 export function ancestors(sha:string, commits:Commit[]){const map=new Map(commits.map(c=>[c.sha,c]));const found=new Set<string>();const todo=[sha];while(todo.length){const s=todo.pop()!;if(found.has(s))continue;found.add(s);for(const p of map.get(s)?.parents||[])todo.push(p.sha);}return found;}
+// GitHub resolves owner/repository paths case-insensitively, so the field accepts lowercase only.
+export const lowercaseRepoInput=(value:string)=>value.toLowerCase();
 export function parseRepo(input:string){const clean=input.trim().replace(/^https:\/\/github\.com\//i,'').replace(/\/$/,'').replace(/\.git$/,'');if(!/^[\w.-]+\/[\w.-]+$/.test(clean)||clean.split('/').some(s=>s==='.'||s==='..'))throw new Error('Enter a GitHub URL or owner/repository.');return clean;}
