@@ -40,7 +40,7 @@ Web App Manifest를 구성합니다.
 - 앱 이름과 아이콘은 기존 GitStream 브랜드 사용
 - 모바일 세로·가로 방향 모두 허용
 - 홈 화면에서 실행하면 GitStream의 시작 화면 표시
-- 특정 저장소 URL은 기존 `?repo=` 파라미터 유지
+- 특정 저장소 URL은 기존 `?repo=` 파라미터 유지. 반복 `repo`와 `mode=monitor`를 사용하는 분할 구성도 현재 URL에서 복원하며 상세 정책은 [Monitor Mode 명세](monitor-mode.md)를 따른다.
 - 주소창 없는 실행에서도 저장소 입력창에 `:debug`를 입력하고 제출해 개발자 진단을 연다. 명령은 현재 저장소를 유지하며 추가 API 조회나 페이지 이동을 발생시키지 않는다. 상세 활성화·종료 정책은 [개발자 디버그 모드 명세](developer-debug-mode.md)를 따른다.
 - 쿼리 파라미터에 따라 별개의 PWA로 인식되지 않도록 고정된 `id` 사용
 
@@ -322,7 +322,7 @@ PWA 설치 후 사용하는 대표 주소는 Vercel Production의 안정적인 �
 ## 12. 구현 구성
 
 - `vite.config.ts`: `vite-plugin-pwa` 2.x의 `generateSW`, `registerType: prompt`를 사용한다. 커스텀 Service Worker와 별도 배포 워크플로는 추가하지 않는다. 기존 의존성 버전은 유지하며 빌드용 직접 의존성만 1개 추가한다.
-- Manifest는 `/manifest.webmanifest`, Service Worker는 `/sw.js`에서 제공한다. ID·시작 주소·범위는 `/`로 고정하고 방향은 제한하지 않는다. 페이지의 기존 `repo`·`debug`·fragment는 업데이트 후에도 유지한다.
+- Manifest는 `/manifest.webmanifest`, Service Worker는 `/sw.js`에서 제공한다. ID·시작 주소·범위는 `/`로 고정하고 방향은 제한하지 않는다. 페이지의 기존 쿼리(반복 `repo`·`mode`·`debug` 포함)와 fragment는 업데이트 후에도 유지한다.
 - `public/icons/`: 원본 `assets/logo.png`를 그대로 보존하고 192/512 PNG, Apple 180 PNG와 maskable 512 PNG를 파생 생성했다. 파일 크기를 줄이기 위해 256색 PNG로 인코딩한다. Maskable은 원본 전체를 중앙 288px 정사각형 안에 넣어 반지름 40%의 안전 원에 모두 들어가도록 했다. 새 디자인·문자는 추가하지 않았다.
 - `src/PwaUpdates.ts`, `src/pwa.ts`, `src/PwaUpdatePrompt.tsx`: 등록·새 버전 안내·적용을 API 갱신과 분리한다. 최초 설치 안내나 설치 유도 배너는 없다. 같은 worker의 Later는 반복 안내하지 않으며 새 버전은 다시 알릴 수 있다.
 - 배포 빌드에서만 SW를 등록한다. 기본 갱신 검사는 브라우저 등록 시, 열린 화면에서는 1시간 주기 및 온라인·탭 복귀 시 수행한다. 후자는 1분 이내 중복 검사, 숨긴 탭·오프라인·설치 중 검사를 생략한다. GitHub API를 호출하지 않는다.
@@ -334,7 +334,9 @@ PWA 설치 후 사용하는 대표 주소는 Vercel Production의 안정적인 �
 
 ## 13. 검증 기록과 실기기 확인
 
-로컬 Chromium의 일반 프로필과 실제 Service Worker·Cache Storage를 사용했다. API만 모킹했으며 Vercel과 같은 CSP·응답 헤더를 로컬 정적 서버에 적용했다.
+### 초기 구현 검증
+
+다음은 초기 PWA 구현 시점의 검증 기록이다. 테스트 개수도 당시 기준이다. 로컬 Chromium의 일반 프로필과 실제 Service Worker·Cache Storage를 사용했다. API만 모킹했으며 Vercel과 같은 CSP·응답 헤더를 로컬 정적 서버에 적용했다.
 
 | 항목 | 확인 결과 |
 | --- | --- |
@@ -348,7 +350,13 @@ PWA 설치 후 사용하는 대표 주소는 Vercel Production의 안정적인 �
 | 캐시 정리·분리 | 업데이트 후 오래된 자산·실패한 설치의 임시 항목 정리, 서로 다른 포트의 캐시·토큰·설치 ID 분리 |
 | 화면 | 세로·가로 Canvas 리사이즈, 작은 콘텐츠 뷰포트 입력, 59px/34px 및 가로 44px/21px Safe Area 에뮬레이션, 가로 문서 넘침 없음 |
 
-실제 Android Chrome 설치, iOS Safari 홈 화면·상태 표시줄·키보드·회전, 데스크톱 OS 설치 실행은 실기기에서 최종 확인해야 한다. Chromium 에뮬레이션은 이 검증을 대체하지 않는다. 이번 작업은 실제 Production 배포를 수행하지 않으므로, 공개 Production 대표 주소(`https://git-stream-view.vercel.app/`)에서 설치·업데이트가 끝까지 되는지는 배포 후 확인해야 한다. 보호된 Preview는 먼저 Vercel 인증을 완료해야 하며 그 결과가 익명 Production 접근을 입증하지 않는다.
+초기 구현 검증에서는 Production 배포·실기기 설치를 확인하지 않았다. 아래 배포 후 확인 기록과 구분하며, Chromium 에뮬레이션을 실기기 검증으로 취급하지 않는다. 보호된 Preview는 먼저 Vercel 인증을 완료해야 하며 그 결과가 익명 Production 접근을 입증하지 않는다.
+
+### 배포 후 확인 (2026-11-01, KST)
+
+- [main 커밋 `a76ea8d`](https://github.com/han41858/git-stream/commit/a76ea8d9e54f108df6360efd0871a95d20d3e666)의 Vercel Production 배포가 READY이고, CI 및 Production release 워크플로가 성공한 것을 확인했다. 자동 생성한 [릴리즈 `rel-20261101020811`](https://github.com/han41858/git-stream/releases/tag/rel-20261101020811)의 태그도 같은 배포 커밋을 가리킨다. Production 대표 주소는 `https://git-stream-view.vercel.app/`다.
+- 이전 PWA 배포 후 사용자로부터 설치 성공 확인을 받았다. 기기·OS·브라우저와 앱 업데이트 적용 결과는 기록되지 않았으므로, 이번 릴리즈의 플랫폼별 설치·업데이트 검증 완료를 의미하지 않는다.
+- 실제 Android Chrome 설치·업데이트, iOS Safari 홈 화면·상태 표시줄·키보드·회전, 데스크톱 OS 설치 실행 및 업데이트 적용은 플랫폼별로 추가 확인해야 한다.
 
 이미 로딩된 Git 데이터는 기존 정책에 따라 현재 탭 메모리에 남을 수 있다. 오프라인으로 새 저장소를 여는 경우에는 기존 오류·Retry를 사용하며, 이미 정상 로딩한 저장소의 자동 갱신은 기존 숨김·온라인 복귀 정책을 따른다. 오프라인 Git 데이터베이스나 백그라운드 동기화는 없다.
 
