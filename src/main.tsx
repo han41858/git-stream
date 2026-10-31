@@ -22,6 +22,12 @@ import {TokenPermissions} from './TokenPermissions';
 import './style.css';
 
 const DEMO_REPO='han41858/git-stream';
+const BUILD_DATE=import.meta.env.DEV?'':(()=>{
+ const builtAt=new Date(__BUILD_TIME__);
+ const date=new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit'}).format(builtAt);
+ const time=`${String(builtAt.getHours()).padStart(2,'0')}:${String(builtAt.getMinutes()).padStart(2,'0')}`;
+ return `${date} ${time}`;
+})();
 
 function App(){
  const [history]=useState(()=>new History());
@@ -101,7 +107,9 @@ function App(){
     <button className="direction-toggle" aria-label={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} title={reverse?'Oldest first; newer commits below':'Newest first; older commits below'} aria-pressed={reverse} onClick={()=>{setSelected(null);void history.setDirection(!reverse);}}>{reverse?'↓ Newer':'↓ Older'}</button>
     <RefreshButton nextAt={refreshState.nextAt} interval={seconds*1000} sweeping={autoRefresh&&!!state.meta&&refreshState.lastSuccess!==null&&!refreshState.running&&refreshRetrySeconds===0} disabled={!state.meta||(!state.commits.length&&state.busy)||refreshState.running||refreshRetrySeconds>0} onRefresh={()=>void loop.refresh()}/>
     <button className="token-button" ref={tokenButtonRef} aria-label={tokenApplied?'Access token (applied)':'Access token'} title={tokenApplied?'Access token applied':'Access token'} aria-expanded={auth} onClick={()=>{if(auth)setAuth(false);else openTokenPopup();}}><svg className={`ticket-icon${tokenApplied?' applied':''}`} viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6z"/><path d="M15 5v2M15 11v2M15 17v2"/></svg><span className="token-label">Token</span></button>
-    <div className="options" ref={optionsRef}><button className="options-trigger" aria-label="Options" aria-expanded={options} aria-controls="options-menu" onClick={()=>setOptions(!options)}>•••</button>{options&&<section className="options-menu floating-panel" id="options-menu" aria-label="View options"><label>Theme<select aria-label="Color theme" value={theme} onChange={e=>setTheme(e.target.value)}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Auto refresh<input type="checkbox" aria-label="Auto refresh" checked={autoRefresh} onChange={e=>setAutoRefresh(e.target.checked)}/></label><label>Interval<select aria-label="Refresh interval" value={seconds} onChange={e=>setIntervalChoice(Number(e.target.value))}>{appliedToken&&<option value={30}>30 seconds</option>}<option value={60}>1 minute</option><option value={300}>5 minutes</option></select></label></section>}</div>
+    <div className="options" ref={optionsRef}><button className="options-trigger" aria-label="Options" aria-expanded={options} aria-controls="options-menu" onClick={()=>setOptions(!options)}>•••</button>{options&&<section className="options-menu floating-panel" id="options-menu" aria-label="View options"><label>Theme<select aria-label="Color theme" value={theme} onChange={e=>setTheme(e.target.value)}><option value="system">System</option><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Auto refresh<input type="checkbox" aria-label="Auto refresh" checked={autoRefresh} onChange={e=>setAutoRefresh(e.target.checked)}/></label><label>Interval<select aria-label="Refresh interval" value={seconds} onChange={e=>setIntervalChoice(Number(e.target.value))}>{appliedToken&&<option value={30}>30 seconds</option>}<option value={60}>1 minute</option><option value={300}>5 minutes</option></select></label>
+     <small className="build-info">{import.meta.env.DEV?'Development':<>Built at <time dateTime={__BUILD_TIME__} dir="auto" title={BUILD_DATE}>{BUILD_DATE}</time></>}</small>
+    </section>}</div>
    </div>
   </header>
   {auth&&<section className="auth floating-panel" ref={authRef} aria-label="GitHub access token">
