@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {graphFrame,branchDisplayNames,branchLabelText,visibleHistorySources,GRAPH_ORIGIN} from './graphView';
+import {layout,type Commit} from './model';
 
 test('history requests use only currently visible boundaries and exclude toolbar, outside lanes and pending work',()=>{
  const positions=new Map([['visible',{x:48,y:1200}],['above',{x:48,y:1099}],['below',{x:48,y:1601}],['left',{x:-1,y:1200}],['right',{x:391,y:1200}]]);
@@ -19,19 +20,50 @@ test('new offscreen boundaries wait for another scroll even if earlier rows were
  assert.deepEqual(visibleHistorySources(frontiers,positions,{...view,top:6000}),[]);
 });
 
-test('mobile frames fit every lane inside the left half without imposing a minimum spacing',()=>{
- for(const width of [280,320,390,800])for(const maxLane of [0,1,8,40,500]){
-  const frame=graphFrame(width,maxLane,true);
-  assert.equal(frame.width,width);assert.ok(frame.branchWidth<=width/2);assert.ok(frame.spacing>0&&frame.spacing<=34);assert.ok(GRAPH_ORIGIN+maxLane*frame.spacing<=frame.branchWidth-18+1e-9);
- }
- assert.ok(graphFrame(320,500,true).spacing<1);
-});
-test('mobile message columns use at most half the screen, retain readable space and stay clear of branches',()=>{
+test('mobile frames reserve half the width only while message columns preserve 12px lane spacing',()=>{
  for(const width of [280,320,390,430,800])for(const maxLane of [0,1,8,40,500]){
   const frame=graphFrame(width,maxLane,true);
-  assert.ok(frame.messageX>frame.branchWidth);
-  assert.ok(frame.messageWidth>=width*.4&&frame.messageWidth<=width/2);
-  assert.ok(frame.messageX+frame.messageWidth<=width-12);
+  assert.equal(frame.width,width);assert.ok(frame.spacing>0&&frame.spacing<=34);assert.ok(GRAPH_ORIGIN+maxLane*frame.spacing<=frame.branchWidth-18+1e-9);
+  if(frame.showMessages){
+   assert.ok(frame.branchWidth<=width/2);assert.ok(frame.spacing>=12);
+   assert.ok(frame.messageX>frame.branchWidth);assert.ok(frame.messageWidth>=width*.4&&frame.messageWidth<=width/2);
+   assert.ok(frame.messageX+frame.messageWidth<=width-12);
+  }else{
+   assert.equal(frame.branchWidth,width);assert.equal(frame.messageWidth,0);assert.equal(frame.messageX,width);
+  }
+ }
+ // Exceptionally dense graphs still fit the viewport after using all available width.
+ assert.ok(graphFrame(320,500,true).spacing<1);
+});
+test('320px, 390px and 430px mobile screens switch messages off before lanes become too close',()=>{
+ for(const [width,lastVisibleLane] of [[320,7],[390,10],[430,12]]){
+  for(let maxLane=0;maxLane<=lastVisibleLane;maxLane++){
+   const frame=graphFrame(width,maxLane,true);assert.equal(frame.showMessages,true);assert.ok(frame.spacing>=12);
+  }
+  for(const maxLane of [lastVisibleLane+1,lastVisibleLane+2,20]){
+   const frame=graphFrame(width,maxLane,true);assert.equal(frame.showMessages,false);assert.equal(frame.branchWidth,width);assert.ok(frame.spacing>=12);
+   const oldSpacing=(width/2-GRAPH_ORIGIN-18)/maxLane;assert.ok(frame.spacing>oldSpacing);
+  }
+ }
+});
+test('message visibility changes in both resize directions and accepts exactly 12px spacing',()=>{
+ assert.equal(graphFrame(395.99,11,true).showMessages,false);
+ const exact=graphFrame(396,11,true);assert.equal(exact.showMessages,true);assert.equal(exact.spacing,12);
+ assert.deepEqual([320,390,430,320].map(width=>graphFrame(width,10,true).showMessages),[false,true,true,false]);
+});
+test('mobile message switching preserves a merge DAG and keeps adjacent node columns separated',()=>{
+ for(const maxLane of [1,7,8,10,11,12,13,20]){
+  const commit=(sha:string,parents:string[],day:number):Commit=>({sha,parents:parents.map(sha=>({sha})),commit:{message:sha,author:{name:'Test',date:`2026-10-${String(day).padStart(2,'0')}T00:00:00Z`},committer:null},html_url:''});
+  const sides=Array.from({length:maxLane},(_,i)=>commit(`side-${i}`,['root'],30-i));
+  const merge=commit('merge',['root',...sides.map(c=>c.sha)],31),commits=[merge,...sides,commit('root',[],1)],before=JSON.stringify(commits);
+  const dag=layout(commits,new Map(),'merge'),lanes=[...dag.lanes.values()],actualMax=Math.max(...lanes);
+  assert.equal(actualMax,maxLane);
+  for(const width of [320,390,430]){
+   const frame=graphFrame(width,actualMax,true),columns=[...new Set(lanes)].sort((a,b)=>a-b).map(lane=>GRAPH_ORIGIN+lane*frame.spacing);
+   for(let i=1;i<columns.length;i++)assert.ok(columns[i]-columns[i-1]>=12-1e-9,'12px lane spacing leaves space between 9px nodes');
+   assert.ok(columns.at(-1)!<=frame.branchWidth-18+1e-9);
+  }
+  assert.equal(JSON.stringify(commits),before);assert.deepEqual([...dag.spine],['merge','root']);
  }
 });
 test('sparse mobile and desktop graphs retain their usual spacing',()=>{
@@ -41,7 +73,7 @@ test('sparse mobile and desktop graphs retain their usual spacing',()=>{
 test('desktop branch width grows with its content up to 50 percent and messages stay capped at 50 percent',()=>{
  for(const width of [801,900,1440,2560])for(const maxLane of [0,1,8,40,500]){
   const frame=graphFrame(width,maxLane,false);
-  assert.equal(frame.width,width);assert.ok(frame.branchWidth<=width/2);
+  assert.equal(frame.width,width);assert.equal(frame.showMessages,true);assert.ok(frame.branchWidth<=width/2);
   assert.ok(frame.spacing>0&&frame.spacing<=34);assert.ok(GRAPH_ORIGIN+maxLane*frame.spacing<=frame.branchWidth-18+1e-9);
   assert.equal(frame.messageX,frame.branchWidth+16);assert.ok(frame.messageWidth<=width/2);assert.ok(frame.messageWidth>0);assert.ok(frame.messageX+frame.messageWidth<=width-16);
  }

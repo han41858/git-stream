@@ -12,9 +12,12 @@ export function visibleHistorySources(frontiers:readonly HistoryFrontier[],posit
 }
 export function graphFrame(viewWidth:number,maxLane:number,mobile:boolean){
  const naturalWidth=GRAPH_ORIGIN+maxLane*LANE_SPACING+76;
- const gap=mobile?12:16,branchWidth=Math.min(viewWidth/2,naturalWidth),messageX=branchWidth+gap;
- const spacing=maxLane>0?Math.min(LANE_SPACING,Math.max(0,branchWidth-GRAPH_ORIGIN-18)/maxLane):LANE_SPACING;
- return {spacing,width:viewWidth,branchWidth,messageX,messageWidth:Math.min(viewWidth/2,Math.max(0,viewWidth-messageX-gap))};
+ const laneSpacing=(available:number)=>maxLane>0?Math.min(LANE_SPACING,Math.max(0,available-GRAPH_ORIGIN-18)/maxLane):LANE_SPACING;
+ const gap=mobile?12:16,compactWidth=Math.min(viewWidth/2,naturalWidth);
+ // Keep mobile lanes at least 12px apart before reserving space for messages.
+ const showMessages=!mobile||laneSpacing(compactWidth)>=12;
+ const branchWidth=showMessages?compactWidth:viewWidth,messageX=showMessages?branchWidth+gap:viewWidth;
+ return {spacing:laneSpacing(branchWidth),width:viewWidth,branchWidth,showMessages,messageX,messageWidth:showMessages?Math.min(viewWidth/2,Math.max(0,viewWidth-messageX-gap)):0};
 }
 export function branchDisplayNames(names:readonly string[]){
  const unique=[...new Set(names)],counts=new Map<string,number>();
