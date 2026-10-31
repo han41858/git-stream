@@ -1,9 +1,6 @@
 .refresh-button{position:relative;isolation:isolate;overflow:hidden;background:var(--surface)}
-.refresh-button.is-sweeping{background:var(--surface)}
-/* Keep the requested white fill, with a contrasting empty track in the light theme. */
-.app[data-theme=light] .refresh-button.is-sweeping{background:#475569}
-.refresh-fill{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.refresh-fill circle{stroke-dashoffset:100;animation:refresh-sweep linear forwards}
-.refresh-symbol{position:relative;color:#fff;mix-blend-mode:difference}
+.refresh-fill{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;opacity:.16}
+.refresh-fill circle{stroke:var(--muted);stroke-dashoffset:100;animation:refresh-sweep linear forwards}
+.refresh-symbol{position:relative}
 @keyframes refresh-sweep{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
-@media(prefers-reduced-motion:reduce){.refresh-fill{display:none}.refresh-fill circle{animation:none}.app[data-theme=light] .refresh-button.is-sweeping{background:var(--surface)}}
+@media(prefers-reduced-motion:reduce){.refresh-fill{display:none}.refresh-fill circle{animation:none}}
