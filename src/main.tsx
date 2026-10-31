@@ -14,7 +14,7 @@ import {CommitInfoStore} from './CommitInfoStore';
 import {RefreshLoop} from './RefreshLoop';
 import {RefreshButton} from './RefreshButton';
 import type {Commit} from './model';
-import logo from '../assets/logo.png';
+import logo from '../assets/logo-320.png';
 import {emojify} from './emoji';
 import {requestActivity} from './requestActivity';
 import {readStoredToken,saveStoredToken} from './tokenStorage';
