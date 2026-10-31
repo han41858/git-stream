@@ -4,6 +4,11 @@
 
 <h1 align="center">GitStream</h1>
 
+<p align="center">
+  <a href="LICENSE.md"><img src="https://img.shields.io/github/license/han41858/git-stream?label=License" alt="License: MIT" /></a>
+  <a href="https://github.com/han41858/git-stream/releases"><img src="https://img.shields.io/github/v/release/han41858/git-stream?sort=date&amp;display_name=tag&amp;label=Latest%20Release" alt="Latest Release" /></a>
+</p>
+
 <p align="center"><strong>Watch your Git history unfold.</strong></p>
 <p align="center">Explore GitHub history directly in your browser.</p>
 <p align="center">Read-only · Web app · PWA</p>
@@ -68,3 +73,7 @@ npm run dev
 - [PWA](docs/pwa.md) · [Developer diagnostics](docs/developer-debug-mode.md) — installation, updates, recovery and local measurements.
 
 Ideas and bug reports are welcome in [Issues](https://github.com/han41858/git-stream/issues).
+
+## License
+
+[MIT](LICENSE.md) © 2026 Han Jang-hyun.
