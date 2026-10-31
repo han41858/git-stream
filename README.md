@@ -71,6 +71,7 @@ npm run dev
 - [Technical guide](docs/technical-guide.md) — usage, architecture, API behavior, tests, deployment and releases.
 - [Product specification](docs/specification.md) · [Refresh and metadata](docs/auto-refresh-and-metadata.md) — implementation specifications.
 - [PWA](docs/pwa.md) · [Developer diagnostics](docs/developer-debug-mode.md) — installation, updates, recovery and local measurements.
+- [Recent repositories](docs/recent-repositories.md) — local suggestions, deletion and PAT changes.
 
 Ideas and bug reports are welcome in [Issues](https://github.com/han41858/git-stream/issues).
 
