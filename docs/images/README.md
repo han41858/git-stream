@@ -10,15 +10,15 @@
 | --- | --- | --- |
 | `desktop.png` | 1280 × 800 | Desktop graph with commit, release and workflow details |
 | `mobile.png` | 390 × 844 | Mobile graph with touch-selected commit details |
-| `auto-refresh.gif` | 1040 × 650 | Approximately 8.1 seconds, 65 real frames at about 8 fps |
+| `auto-refresh.gif` | 900 × 380 | Approximately 10.1 seconds, 81 frames at 8 fps |
 
-The GIF records a normal one-minute automatic refresh, showing request activity and the updated refresh time. No new commit arrived during this recording.
+The GIF follows `docs/readme-product-page` during a normal one-minute automatic refresh. Commit `b5778ab` (the capture-notes cleanup in this PR) was pushed during the wait and appears as a new graph node; the displayed commit count changes from 85 to 86.
 
 ## Reproduce the captures
 
 1. Run `npm ci`, `npm run build` and `npm run preview` from the repository root.
 2. Open `/?repo=han41858%2Fgit-stream` in a fresh browser profile and use the dark theme.
 3. Set the desktop/mobile viewport sizes listed above and select a real commit through the graph. Wait for request activity to settle before saving a PNG.
-4. For the GIF, choose a one-minute refresh interval in Options and record the scheduled check.
+4. For the GIF, select a branch receiving a real change, choose a one-minute refresh interval in Options, dismiss the menu and click an empty area to clear focus. Record the next scheduled check as the new commit appears.
 
 Live repository contents and workflow states can change, so later captures need not have the same commit count or timestamps.

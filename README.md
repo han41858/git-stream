@@ -19,7 +19,7 @@
 <table>
   <tr><th>Automatic refresh</th><th>Mobile</th></tr>
   <tr>
-    <td width="68%" align="center" valign="top"><img src="docs/images/auto-refresh.gif" alt="A real scheduled refresh in GitStream, from request activity to completion" width="680" /></td>
+    <td width="68%" align="center" valign="top"><img src="docs/images/auto-refresh.gif" alt="A newly pushed commit appearing automatically in GitStream after a scheduled refresh" width="680" /></td>
     <td width="32%" align="center" valign="top"><img src="docs/images/mobile.png" alt="GitStream's responsive mobile view of the same public repository" width="200" /></td>
   </tr>
 </table>
