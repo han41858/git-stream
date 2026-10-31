@@ -73,3 +73,7 @@ npm run dev
 - [PWA](docs/pwa.md) · [Developer diagnostics](docs/developer-debug-mode.md) — installation, updates, recovery and local measurements.
 
 Ideas and bug reports are welcome in [Issues](https://github.com/han41858/git-stream/issues).
+
+## License
+
+[MIT](LICENSE.md) © 2026 Han Jang-hyun.
