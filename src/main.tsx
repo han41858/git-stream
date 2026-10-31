@@ -15,7 +15,7 @@ import {RefreshLoop} from './RefreshLoop';
 import {RefreshButton} from './RefreshButton';
 import {lowercaseRepoInput,type Commit} from './model';
 import {lowercaseField} from './repoInput';
-import logo from '../assets/logo.png';
+import logo from '../assets/logo-320.png';
 import {emojify} from './emoji';
 import {requestActivity} from './requestActivity';
 import {readStoredToken,saveStoredToken} from './tokenStorage';

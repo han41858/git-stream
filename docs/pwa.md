@@ -323,7 +323,7 @@ PWA 설치 후 사용하는 대표 주소는 Vercel Production의 안정적인 �
 
 - `vite.config.ts`: `vite-plugin-pwa` 2.x의 `generateSW`, `registerType: prompt`를 사용한다. 커스텀 Service Worker와 별도 배포 워크플로는 추가하지 않는다. 기존 의존성 버전은 유지하며 빌드용 직접 의존성만 1개 추가한다.
 - Manifest는 `/manifest.webmanifest`, Service Worker는 `/sw.js`에서 제공한다. ID·시작 주소·범위는 `/`로 고정하고 방향은 제한하지 않는다. 페이지의 기존 `repo`·`debug`·fragment는 업데이트 후에도 유지한다.
-- `public/icons/`: 원본 `assets/logo.png`를 그대로 보존하고 192/512 PNG, Apple 180 PNG와 maskable 512 PNG를 파생 생성했다. Maskable은 원본 전체를 중앙 288px 정사각형 안에 넣어 반지름 40%의 안전 원에 모두 들어가도록 했다. 새 디자인·문자는 추가하지 않았다.
+- `public/icons/`: 원본 `assets/logo.png`를 그대로 보존하고 192/512 PNG, Apple 180 PNG와 maskable 512 PNG를 파생 생성했다. 파일 크기를 줄이기 위해 256색 PNG로 인코딩한다. Maskable은 원본 전체를 중앙 288px 정사각형 안에 넣어 반지름 40%의 안전 원에 모두 들어가도록 했다. 새 디자인·문자는 추가하지 않았다.
 - `src/PwaUpdates.ts`, `src/pwa.ts`, `src/PwaUpdatePrompt.tsx`: 등록·새 버전 안내·적용을 API 갱신과 분리한다. 최초 설치 안내나 설치 유도 배너는 없다. 같은 worker의 Later는 반복 안내하지 않으며 새 버전은 다시 알릴 수 있다.
 - 배포 빌드에서만 SW를 등록한다. 기본 갱신 검사는 브라우저 등록 시, 열린 화면에서는 1시간 주기 및 온라인·탭 복귀 시 수행한다. 후자는 1분 이내 중복 검사, 숨긴 탭·오프라인·설치 중 검사를 생략한다. GitHub API를 호출하지 않는다.
 - 적용 버튼을 누른 창만 새 controller가 준비된 후 새로고침한다. 다른 창에서 업데이트를 적용해도 현재 창을 강제 새로고침하지 않는다. 적용 실패·15초 이내 제어권 미전환 시 기존 화면과 오류 안내를 유지하고 재시도할 수 있다.
@@ -397,7 +397,7 @@ location.reload();
 - 디버그 JS·CSS도 정적 precache에 포함한다. 오프라인에서 기존 디버그 패널을 사용할 수 있도록 한 선택이며, 온라인 지연 로딩 절감분 약 6.7KB는 SW 설치 시 내려받는다.
 - 설치 스플래시의 초기 색은 기본 어두운 브랜드 색으로 고정하고 실행 후에는 기존 시스템/앱 테마를 적용한다.
 - 업데이트 안내는 디버그 진입·로딩 실패 안내보다 위에 두고 하단 위치를 올려 두 안내의 버튼이 겹치지 않게 한다. 패널이 열려 있어도 업데이트 안내를 조작하고 닫을 수 있다.
-- 원본 1.2MB 로고의 화면 표시용 축소는 기존 UI 자산 최적화에 해당하므로 별도 후속 작업으로 남긴다. 이번 PWA 캐시는 그 원본을 포함한 약 1.7MiB이며 API 데이터는 포함하지 않는다.
+- 앱 화면의 로고는 원본(1254px, 약 1.2MB) 대신 최대 표시 크기 160px의 2배인 320px 256색 PNG(`assets/logo-320.png`, 약 22KB)를 사용한다. 원본 `assets/logo.png`는 저장소에 보존하지만 앱 번들과 precache에는 포함하지 않는다. `public/icons/`의 아이콘도 같은 256색 PNG로 다시 인코딩해 합계 약 163KB에서 약 65KB로 줄였다(원본 대비 PSNR 47dB 이상). precache는 약 1.7MiB에서 약 446KiB로 줄었고 API 데이터는 포함하지 않는다.
 - 리뷰 후 로컬 Chromium에서 `selfDestroying: true`인 별도 검증 빌드를 실제 제공해 SW 등록 0개·Cache Storage 0개를 확인했다. PAT와 쿼리·fragment는 보존되고 다른 Origin의 캐시는 유지되었으며 정상 PWA 빌드 재등록도 확인했다. 평상시 프로젝트 설정에는 이 옵션을 켜지 않았다.
 - 업데이트 안내와 디버그 진입 버튼의 실제 경계가 겹치지 않는 것, 디버그 패널을 연 상태에서도 Update app을 선택할 수 있는 것을 확인했다.
 - `npm audit --omit=dev` 결과는 0건이다. 전체 감사의 low 4건은 `workbox-build`·`@rollup/plugin-node-resolve`·`deepmerge` 빌드 경로이며 후속으로 추적한다. 자동 수정 제안은 필요한 v2 API가 없는 `vite-plugin-pwa` 0.2.1로의 대폭 다운그레이드이므로 적용하지 않는다.
