@@ -67,7 +67,7 @@ export function MonitorSetup({current,recent,saved,initial,onStart,onClose}:{cur
     <button type="submit" disabled={selected.length>=MONITOR_LIMIT}>Add</button>
    </form>
    {error&&<p className="monitor-setup-error" role="alert">{error}</p>}
-   {available.length>0&&<><h3>Recent repositories</h3><div className="monitor-recent">{available.map(entry=><button type="button" key={entry.repository} title={entry.repository} aria-label={`Add ${entry.repository} to monitor`} onClick={()=>add(entry.repository)}><span aria-hidden="true">↶</span><span>{entry.repository}</span></button>)}</div></>}
+   {available.length>0&&<><h3>Recent repositories</h3><div className="monitor-recent">{available.map(entry=><button type="button" key={entry.repository} title={entry.repository} aria-label={`Add ${entry.repository} to monitor`} onClick={()=>add(entry.repository)}><span>{entry.repository}</span></button>)}</div></>}
    <p className="monitor-share-note">Shared links include repository names, including private ones. Share with care.</p>
    <div className="monitor-copy-status" role="status" aria-live="polite">{copyStatus}</div>
    <div className="monitor-setup-actions"><small>{selected.length} / {MONITOR_LIMIT}</small><button type="button" disabled={!selected.length} onClick={()=>void copyLink()}>Copy link</button><button type="button" className="primary" disabled={!selected.length} onClick={()=>onStart(selected)}>Start split view</button></div>
